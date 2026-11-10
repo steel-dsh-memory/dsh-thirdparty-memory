@@ -1,0 +1,25 @@
+name: syntax
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Syntax check
+        run: |
+          node --check core.js
+          node --check index.js
+          node --check server.js
+      - name: Module smoke test
+        run: |
+          node -e "import('./core.js').then(m => { for (const k of ['loadStore','saveStore','mutateStore','renderInjection','selectEntries','storageInfo']) if (typeof m[k] !== 'function') { console.error('missing export', k); process.exit(1) } console.log('core exports ok') })"
