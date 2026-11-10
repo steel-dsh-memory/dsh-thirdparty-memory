@@ -1,0 +1,100 @@
+dsh-thirdparty-memory 0.4.0 — 发布与迁移记录
+============================================
+
+日期：2026-11-09
+版本：0.4.0（上一版 0.3.0）
+项目目录：F:\deepseek\长期记忆
+站点：https://steel.dsh-memory.pages.dev/（正式域名）· https://dsh-memory.pages.dev/（main）
+
+一、这次改了什么
+----------------
+1) 存储层 JSON → SQLite（node:sqlite，零运行时依赖，WAL）
+   - dataFile 配置仍可写 .json；实际库是同目录同名的 .sqlite（memory.json → memory.sqlite）。
+   - 首次读取做一次性「复制式迁移」：先复制 memory.json 为
+     memory.json.bak_pre_sqlite_<ISO时间戳>，再导入新库；原 JSON 不写、不删、不改名。
+   - 运行时没有 node:sqlite（Node < 22.5）自动回退 JSON，功能不缩水（向量检索除外）。
+
+2) 本地向量索引（零依赖、不联网）
+   - 字符 1/2/3-gram + 拉丁词 → FNV-1a 哈希到 256 维 → TF 加权 → L2 归一 →
+     Float32 BLOB 存 SQLite 的 vectors 表。
+   - 检索得分 = 关键词得分 + round(cos × 12 × vectorWeight)，低于 vectorMinCos 不计分。
+   - 诚实口径：这是「字面相近」（同字/同词/语序变化），不是同义词级语义。
+   - 配置：vector（true/false）、vectorWeight（默认 1）、vectorMinCos（默认 0.3）。
+
+3) 更新不碰记忆文件（硬约束）
+   - 默认数据目录移出插件目录：Windows 为 %APPDATA%\dsh-thirdparty-memory\，
+     可用 DSH_THIRDPARTY_MEMORY_HOME 覆盖。
+   - 老版本放在插件目录 data\memory.json 的数据，只作「只读迁移来源」，原文件保留。
+   - attach.ps1 不传 -DataFile 时保留已有 dataFile 行（以前会删掉，等于悄悄换记忆文件）。
+   - 管理器 exe 的「切换存储目录」会连 memory.sqlite、-wal、-shm 一起复制。
+
+4) P0 崩溃修复：Store/MSIX 版 DSH Desktop 安装后重启即崩
+   - 根因：profile 的 package.json 被写成 UTF-8 with BOM；宿主 readProfileManifest
+     直接 JSON.parse 不剥 BOM → SyntaxError: Unexpected token '\uFEFF' → 退出码 1 →
+     连崩 3 次后宿主停止自动重启。
+   - 修复：attach.ps1 与管理器 exe 全部无 BOM 写入；读取容错 BOM；
+     新增 attach.ps1 -Repair（先备份 package.json 为 .bak_bom_<时间戳>，再剥 BOM）。
+
+二、改了哪些文件
+----------------
+插件：core.js（存储/向量重写）、index.js（配置项与默认数据目录）、server.js（storage 信息、
+默认路径）、ui.html（设置页隐私文案改为 SQLite 口径）、attach.ps1（BOM 容错/-Repair/
+保留 dataFile/MSIX 路径探测）、package.json（0.4.0）、cordis.patch.yml（向量三键）、
+manager\DshMemoryManager.cs（无 BOM 写入、切换目录复制 SQLite、版本号）、
+dsh-memory-manager.exe（重编，35,577,344 B）。
+文档：README.md/.txt、README.zh-CN.md/.txt、README.zh-TW.md/.txt、
+docs\tutorial.md/.txt、tutorial.zh-CN.md/.txt、tutorial.zh-TW.md/.txt、
+examples\cordis.patch.yml.example。（.txt 由 tools\md2txt.mjs 从 .md 再生）
+站点：index.html（v0.4.0、历史版本栏 #versions、修复栏 #bugs、导航锚点）、
+assets\app.js（三语词典 +32 条新 key，后移除 1 条不实条目）、assets\style.css（时间线/分级徽章）。
+发布：release\dsh-thirdparty-memory-0.4.0.zip（35,155,388 B）。
+
+三、站点（已部署并验证）
+------------------------
+- 历史版本栏：v0.4.0 / v0.3.0，只列要点，不给下载链接；更早版本只写「见仓库 CHANGELOG」。
+- 修复栏：按 P 级排列（P0 崩溃/数据丢失、P1 功能不可用、P2 体验/边界），纯技术描述。
+  条目：P0 BOM 启动崩溃；P1 替换插件目录覆盖 data\memory.json；
+  P2 attach.ps1 丢 dataFile。之前误加的一条「dataFile 斜杠混用会生成两个库」已删除
+  （Windows 下两种斜杠解析到同一文件，不是真 bug）。
+- 下载：exe / zip 各切成 2 卷（24 MiB/卷），dl\manifest.json 记录整体与分卷 SHA-256。
+- 实测：两卷下载后拼接，整体 SHA-256 与 manifest 全等；文档按语言返回 attachment。
+- 历史版本下载已关闭：0.3.0 分卷不在新部署里，请求返回站点首页兜底（不是 zip）。
+  HANDOFF-PROMPT.txt 也不再对外提供。
+
+四、验证结果（本机实测）
+------------------------
+- node 24.21（DSH 宿主同版本）：core 单测通过；迁移 28 条记忆 → 28 条向量；
+  原 memory.json SHA-256 迁移前后一致；备份文件生成一份且只生成一次。
+- node 22.0：自动回退 JSON，不生成 .sqlite，关键词路径正常。
+- 插件 e2e（stub @deepseek-ai/dsh-tools）：工具注册、注入渲染、增删改查、自动提取、
+  SQLite 落库、原 JSON 不变，全部通过。
+- 站点：/ 200、三语词典无缺 key、390px 无横向溢出（CDP 实测 scrollWidth=390）、
+  外链仅 canonical 一条。
+- 桌面崩溃文件：profiles\web\package.json 已去除 BOM（526 → 523 B），JSON.parse 通过；
+  两个 DSH home 的全部 profile 清单 BOM=0、JSON 合法。
+
+五、生效方式（重要）
+--------------------
+1) 记忆数据不在这次做主动迁移：当前仍在运行的旧插件进程还会写 JSON，
+   现在迁移会让之后写入丢失。重启 DSH 后，新插件第一次读取时自动迁移并留备份。
+2) 已手动停掉旧的记忆页进程（127.5.0.1:7891），重启 DSH 后新插件会自动拉起。
+3) 重启后到记忆页确认：设置页应显示 SQLite 库路径、向量条数；数据条数与迁移前一致。
+4) Store 版 DSH Desktop 需要点控制器的「重新启动 Harness」；profile 清单已修好。
+
+六、备份与回滚
+--------------
+- 操作前备份：backups\pre_sqlite_20261109_210931\（两份 memory.json、源码、profile 清单、
+  SHA256SUMS.txt）
+- BOM 修复备份：backups\bomfix_20261109_210549\
+- 0.3.0 分卷归档：archive\v0.3.0-dl\
+- 回滚：把上述源码文件复制回项目目录，DSH 重启即可；数据侧 .sqlite 可删，
+  JSON 原件一直在，删库即回退到 JSON（新代码会自动重新迁移）。
+
+七、遗留 / 待确认
+----------------
+1) Store 版 web profile 的 cordis.patch.yml 里有乱码注释（19:37 那次写入造成），
+   有效配置完好且仍指向 F:/dsh-memory-data/memory.json；未改写用户配置，如需可重建。
+2) 管理器 --data 打印的仍是 .json 配置路径；真正库是同路径的 .sqlite（文档已写明）。
+   管理器的「旧目录还有 N 条」计数仍只读 JSON，SQLite 库只显示「有 SQLite 记忆库」。
+3) site\HANDOFF-PROMPT.* 是 0.3.0 时期的交接文档，已不再部署，但仍在仓库里。
+4) 若日后直接整目录部署 site\，需先确认 dl\ 下没有旧版本分卷被带上。

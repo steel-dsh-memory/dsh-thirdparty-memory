@@ -1,0 +1,724 @@
+DSH 第三方長期記憶外掛（非官方）· 完整教學
+========================
+
+  > 聲明：本專案為獨立第三方開源專案，與 DeepSeek、豆包及相關官方團隊無關，未獲其授權或背書；文中產品名僅用於說明相容性。
+
+繁體中文版。英文根文件：tutorial.md · 简体中文：tutorial.zh-CN.md。
+每種語言都同時提供純文字版（tutorial.txt、tutorial.zh-CN.txt、tutorial.zh-TW.txt）。
+
+版本：0.4.3（2026-11-10）。
+
+這份教學的目標是寫成「你唯一需要讀的那一份文件」：安裝、設定、日常使用、出問題怎麼修。
+
+------------------------------------------------------------------------
+
+0. 你實際在跑的是四個東西
+--------------
+
+搞清哪個壞了，90% 的故障排查就做完了。
+
+* 外掛（index.js + core.js）
+    在哪裡: 某個 DSH profile 裡，由 Cordis loader 載入
+    做什麼: 注入【長期記憶】段、註冊 remember 工具、監聽對話事件
+    怎麼重新啟動: 重新啟動 DSH（bundle 只在啟動時載入）
+
+* 記憶頁服務（server.js + ui.html + core.js）
+    在哪裡: 一個獨立的 node 程序
+    做什麼: 提供 <http://127.0.0.1:7891/>，讀寫同一個記憶庫
+    怎麼重新啟動: dsh-memory-manager.exe --restart，或系統匣 ▸ 重新啟動服務
+
+* 管理器 exe（dsh-memory-manager.exe）
+    在哪裡: 你放哪兒都行
+    做什麼: 解壓內建執行環境、啟停記憶頁、系統匣選單、儲存/連接埠/語言設定
+    怎麼重新啟動: 重新執行它
+
+* 記憶庫（SQLite memory.sqlite，可回退 JSON）
+    在哪裡: dataFile（預設 %APPDATA%\dsh-thirdparty-memory\memory.sqlite，或你指定的儲存資料夾）
+    做什麼: 外掛與記憶頁共同讀寫的唯一真相
+    怎麼重新啟動: 不用重新啟動；每次操作都重新讀庫
+
+兩條能解釋絕大部分困惑的規則：
+
+1. 記憶頁和外掛是兩個獨立程序。 記憶頁開著但外掛沒載入 → agent 沒有記憶工具；外掛載入了但記憶頁沒開 → agent 照樣有記憶，只是沒有介面。
+2. 只有記憶庫是共享狀態。 如果記憶頁顯示 0 條，而 agent「好像記得東西」，那它們讀的是兩個不同的檔案 —— 見 §3.4。
+
+------------------------------------------------------------------------
+
+1. 安裝
+-----
+
+1.1 開始之前
+
+- Windows 10/11。
+- 已經裝好任一種 DSH 宿主：DSH Desktop（MSIX）、DeepSeek Harness 可攜版，或命令列 dsh。
+- 不需要別的。用 exe 的話連 Node 都不用裝（自帶 Node 24）；用腳本或手動方式則要求 Node 18+ 能被解析到。SQLite 儲存需要 node:sqlite（Node 22.5+）；執行環境更舊時外掛會自動回退到 JSON。
+
+先找到你的 profile —— 外掛掛的是某個 profile，不是抽象的「DSH」：
+
+    %APPDATA%\com.yeagoo.dsh-desktop\harness\profiles\web     ← DSH Desktop（MSIX），`dsh web` 啟動的就是它
+    %USERPROFILE%\.dsh\profiles\web                           ← 命令列 / 可攜版
+    %USERPROFILE%\.dsh\profiles\desktop                       ← 舊的桌面風格 profile
+
+profile 就是一個資料夾，裡面放著 package.json、cordis.patch.yml、cordis.yml 和 node_modules。dsh web 的意思就是「啟動名為 web 的那個 profile」。
+
+1.2 方式一：管理器 exe（推薦）
+
+1. 把 dsh-memory-manager.exe 放到任意可寫資料夾（例如 D:\tools\）。就一個 ~34 MB 的單檔，不需要別的。
+2. 雙擊執行。
+   - 首次執行會問介面語言 → English / 简体中文 / 繁體中文。選擇會寫進 %LOCALAPPDATA%\dsh-thirdparty-memory\config.json，之後一直沿用（系統匣 ▸ 語言 可改）。
+   - 它會把內建的 Node 執行環境與應用檔案解壓到 %LOCALAPPDATA%\dsh-thirdparty-memory\，啟動記憶頁並開啟 <http://127.0.0.1:7891/>。
+   - 系統匣出現圖示：開啟記憶頁、複製網址、儲存位置…、開啟儲存資料夾、變更連接埠…、重新啟動服務、停止服務、掛載到 DSH…、開啟安裝資料夾、語言、結束。
+3. 系統匣 ▸ 掛載到 DSH…（或執行 dsh-memory-manager.exe --install）。它會為每個找到的 profile 建立 junction、登記 bundle、寫 patch 條目，並把外掛的 dsh-tools 對等相依指向宿主那一份。
+4. 重新啟動 DSH。
+5. 驗證：
+   - DSH ▸ 設定 → 外掛 裡有 dsh-thirdparty-memory（條目 id thirdparty-memory，已掛載）；
+   - 開一個新對話問「你還記得我什麼？」—— 它應該直接根據注入的記憶回答，而不是去翻硬碟；
+   - 記憶頁顯示的條目數與 agent 能看到的條數一致。
+
+命令列等價寫法：
+
+    dsh-memory-manager.exe --install                    :: 掛載 + 啟動 + 開啟
+    dsh-memory-manager.exe --start                      :: 只啟動記憶頁服務
+    dsh-memory-manager.exe --stop                       :: 停止記憶頁服務
+    dsh-memory-manager.exe --status                     :: 0 正常 · 1 未執行 · 3 連接埠被別的程式占用
+    dsh-memory-manager.exe --port 7900                  :: 記住一個新連接埠（被占用則拒絕）
+    dsh-memory-manager.exe --store "D:\dsh-memory-data"  :: 記住一個新儲存資料夾
+    dsh-memory-manager.exe --lang zh-TW                 :: 切換介面語言
+    dsh-memory-manager.exe --dir / --data / --version   :: 顯示安裝資料夾 / 資料檔 / 版本
+
+1.3 方式二：attach.ps1
+
+    # 自動掛載所有能偵測到的 profile（MSIX + 可攜版 + 命令列 home）
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1
+    
+    # 順便為缺少 web profile 的 home 建一個
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -CreateWeb
+    
+    # 只掛某一個 profile
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -ProfileDir "C:\Users\you\.dsh\profiles\web"
+    
+    # 修復：去掉各 profile 裡 package.json 的 UTF-8 BOM（帶 BOM 會讓 DSH Desktop 啟動即崩）
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair
+    
+    # 把記憶庫放到外掛資料夾之外（推薦：純 ASCII 路徑）
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-memory-data/memory.json"
+    
+    # 多版本並存時，手動指定外掛的 dsh-tools 對等相依來源
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -RuntimeDir "D:\harness\node_modules\@deepseek-ai" -Force
+
+腳本是幂等的：[skip] 表示「本來就是對的」。它每改一處就打一行，最後印出 done: N/M profile(s) attached。
+
+兩個需要知道的行為：
+
+- -DataFile 可省略。 不傳時腳本保留 patch 裡既有的 dataFile，而不是刪掉那一行（舊版會刪，等於把記憶庫偷偷挪了位置）。
+- -Repair 修完清單就結束。 它印出 repair done: fixed=… clean=… invalid=…，不做掛載；之後照常再跑一遍一般命令。每個被改寫的清單都會先備份成 package.json.bak_bom_<時間戳>。
+
+1.4 方式三：手動四步
+
+設 profile 資料夾為 P：
+
+1. 連結外掛：
+
+       mklink /J "P\node_modules\dsh-thirdparty-memory" "D:\plugins\dsh-thirdparty-memory"
+
+   （直接複製資料夾也可以；用 junction 的好處是改原始碼只改一處。）
+2. 登記 bundle —— P\package.json 的 dsh.profile.bundles 裡必須有 "dsh-thirdparty-memory"。
+3. 寫 loader patch —— 往 P\cordis.patch.yml 追加：
+
+       - id: thirdparty-memory
+         name: dsh-thirdparty-memory
+         config:
+           enabled: true
+           judgeMode: model
+           inbox: true
+
+   如果檔案裡只有一行 []，要把它換掉 —— 一個光禿禿的 [] 後面再接 mapping 不是合法 YAML。
+4. 對等相依 —— 外掛要從宿主 import @deepseek-ai/dsh-tools：
+
+       mklink /J "<外掛>\node_modules\@deepseek-ai\dsh-tools" "<宿主>\node_modules\@deepseek-ai\dsh-tools"
+
+然後重新啟動 DSH。
+
+  > 第 4 步為什麼存在： 外掛的真實路徑可能在另一個磁碟機，Node 的逐層向上尋找永遠到不了 $DSH_HOME\profiles\node_modules（那是 DSH 給內建套件留的備援路徑）。junction 讓對等相依能被解析到，又不用複製一份。
+
+1.5 首次安裝檢查清單
+
+    [ ] 記憶頁能在 http://127.5.0.1:7891/ 開啟（http://127.0.0.1:7891/ 也可以）
+    [ ] 設定 → 外掛 裡 dsh-thirdparty-memory 顯示已掛載
+    [ ] 新對話能列出記憶（問「列出我的記憶」）
+    [ ] 記憶頁和 agent 看到的條目數一致
+    [ ] 系統匣 ▸ 儲存位置 顯示的是你期望的資料夾
+    [ ] 該資料夾裡能看到記憶庫檔案（預設 `memory.sqlite`）
+
+------------------------------------------------------------------------
+
+2. 設定
+-----
+
+2.1 兩層設定
+
+層     檔案                                                      覆蓋誰
+-----------------------------------------------------------------
+部署層   profile 的 cordis.patch.yml（- id: thirdparty-memory 區塊）  外掛自身預設值
+使用者層  記憶庫 → settings（記憶頁寫入）                                   對白名單鍵，覆蓋部署層
+
+使用者層可以覆蓋的白名單鍵：injectMode、judgeMode、maxRelevant、perCluster、minScore、showIndex、indexChars、maxBytes、maxEntries、recallMaxBytes、maxRecall、currentProject。開關類（enabled、autoExtract）也分層：YAML 關 = 硬關（記憶頁的開關無法再打開），記憶頁關 = 軟關。
+
+2.2 每個鍵，以及什麼時候該改
+
+* enabled
+    預設: true
+    什麼時候改: 你想要一個全域總閘（例如開一個敏感工作階段）
+
+* judgeMode
+    預設: model
+    什麼時候改: 想零 token 開銷擷取 → rules；只想回應明確要求 → off
+
+* autoExtract
+    預設: true
+    什麼時候改: 只在 judgeMode: rules 時有意義
+
+* inbox
+    預設: true
+    什麼時候改: 設 false 讓正規表示式擷取的畫像條目直接生效
+
+* injectMode
+    預設: relevant
+    什麼時候改: 記憶很少、希望一直全量可見時設 all
+
+* maxBytes
+    預設: 8192
+    什麼時候改: 小模型/長上下文時調小；專案類事實多時調大
+
+* maxRelevant
+    預設: 6
+    什麼時候改: 問題經常橫跨多個話題時調大
+
+* perCluster
+    預設: 2
+    什麼時候改: 一句話裡點三四件事時調大
+
+* minScore
+    預設: 6
+    什麼時候改: 無關記憶老混進來 → 調高（8–10）；相關記憶老被漏 → 調低（4）
+
+* recallMaxBytes
+    預設: 16384
+    什麼時候改: 「把關於 X 的全部提取出來」仍被截斷時調大
+
+* maxRecall
+    預設: 40
+    什麼時候改: 記憶庫特別大時調大
+
+* showIndex
+    預設: true
+    什麼時候改: 設 false 省位元組，但模型就沒辦法發現未選中的條目了
+
+* indexChars
+    預設: 18
+    什麼時候改: 索引想更省就 10–12，想更好認就 24+
+
+* currentProject
+    預設: ""
+    什麼時候改: 長時間待在一個專案裡時設上，它的記憶不必點名就能入選
+
+* dataFile
+    預設: ""
+    什麼時候改: 記憶庫路徑。留空 = %APPDATA%\dsh-thirdparty-memory\memory.sqlite；寫 .json 路徑會對應到同名的 .sqlite
+
+* vector
+    預設: true
+    什麼時候改: 本機向量索引；false = 純關鍵字檢索
+
+* vectorWeight
+    預設: 1
+    什麼時候改: 餘弦加成的權重（0 等於關掉）
+
+* vectorMinCos
+    預設: 0.3
+    什麼時候改: 餘弦下限，低於它不加分（越大越嚴）
+
+* pageServer
+    預設: true
+    什麼時候改: 你自己管記憶頁時設 false
+
+* pageHost / pagePort
+    預設: 127.5.0.1 / 7891
+    什麼時候改: 連接埠衝突，或你更喜歡 127.0.0.1
+
+三套現成設定：
+
+    # 極簡 —— 記憶少、提示詞最省
+    config: { enabled: true, judgeMode: model, injectMode: all, maxBytes: 4096, showIndex: false }
+    
+    # 均衡（預設）
+    config: { enabled: true, judgeMode: model, injectMode: relevant, maxBytes: 8192, maxRelevant: 6, minScore: 6, showIndex: true }
+    
+    # 長上下文 / 多專案
+    config: { enabled: true, judgeMode: model, injectMode: relevant, maxBytes: 16384, maxRelevant: 10, perCluster: 3, minScore: 5,
+              recallMaxBytes: 32768, indexChars: 24, currentProject: 'my-project' }
+
+2.3 連接埠
+
+- 預設 127.5.0.1:7891，同時也會繫結 127.0.0.1，所以 localhost:7891 也能用。
+- 改連接埠：系統匣 ▸ 變更連接埠…，或 --port 7900，或改 patch 裡的 pagePort，然後重新啟動記憶頁。
+- 連接埠被占用時是拒絕，不是搶占。 管理器會區分「這是我自己啟動的服務」（重用）和「這是別的程式」（結束碼 3 + 提示）。你把它指向別的應用占著的連接埠時，它既不啟動也不殺別人。
+- 改連接埠只重新啟動記憶頁，不影響 DSH 外掛（外掛根本不碰這個連接埠）。
+
+2.4 儲存資料夾
+
+管理器強制執行的規則：
+
+1. 磁碟機必須存在；
+2. 每一層資料夾名稱必須是 ASCII：A-Z a-z 0-9，以及空白 _ - .；
+3. 目標必須是空的，或者本來就是目前儲存資料夾；
+4. 不接受裸磁碟機根目錄（D:\）。
+
+改資料夾：系統匣 ▸ 儲存位置… 或 --store <資料夾>。如果舊資料夾裡還有記憶，會問你：
+
+    舊資料夾裡還有 N 條記憶：
+      D:\old\memory.json
+    是否複製到新資料夾？
+      是 = 複製     否 = 只切換（舊資料留在原處）     取消 = 放棄
+
+切換成功後，管理器會把 dataFile 寫進每個已掛載 profile 的 cordis.patch.yml —— 重新啟動 DSH 讓外掛跟過去。記憶頁服務會自動重新啟動。
+
+  > 儲存路徑請保持純 ASCII。Windows 能容忍中文/Unicode 資料夾，但 wscript、PowerShell 5.1 腳本檔以及某些啟動器會把它們搞亂；把資料路徑保持為純 ASCII 能消滅一整類故障。
+
+這個資料夾裡現在是 memory.sqlite（記憶頁執行時旁邊還會有 -wal / -shm）。同資料夾下的 memory.json 已經不是活資料：它只是 0.4.0 第一次啟動做遷移時的唯讀來源，外掛不會改它。0.4.1 起每次寫入後會做 WAL checkpoint，主庫本身就是完整資料；-wal 只是執行期的暫存檔案，寫入後會被合併回主庫。
+
+2.5 語言
+
+- 安裝時選一次（首次啟動的彈窗），存在 config.json.lang 裡。
+- 隨時可改：系統匣 ▸ 語言、--lang en|zh-CN|zh-TW，或記憶頁 ▸ 設定 ▸ 語言。
+- 管理器會把選擇同步進記憶庫的 settings.lang；記憶頁服務再把它注入 HTML（window.__DSH_MEMORY_LANG__），兩邊始終一致。
+- 文件遵循同一套語言：README.md（英文根）、README.zh-CN.md、README.zh-TW.md，教學三語齊全，每種都有 .md 與 .txt。
+
+2.6 資料檔在哪
+
+0.4.0 起記憶庫是 SQLite 資料庫：與 dataFile 同資料夾、同主名，副檔名換成 .sqlite。設定裡寫 memory.json，實際就是旁邊的 memory.sqlite。
+
+    %APPDATA%\dsh-thirdparty-memory\memory.sqlite        ← 新安裝使用者的預設位置
+    D:\dsh-memory-data\memory.sqlite                     ← dataFile 指到哪就是哪
+    <外掛>\data\memory.json                              ← 舊位置：唯讀遷移來源
+
+    :: 查看管理器正在用的記憶庫路徑
+    dsh-memory-manager.exe --data
+    
+    :: 改預設資料夾（要在 DSH 啟動前設定；外掛和記憶頁啟動時讀取）
+    set DSH_THIRDPARTY_MEMORY_HOME=D:\dsh-memory-data
+
+--data 印出的是管理器設定的儲存路徑；真正的庫在同一個路徑上把副檔名換成 .sqlite；沒有 node:sqlite 時則是同路徑下的 JSON。
+
+幾條判斷規則：
+
+- 位置只由 dataFile 決定。想放到別處，就在 cordis.patch.yml 裡寫 dataFile（或用 -DataFile）。
+- DSH_THIRDPARTY_MEMORY_HOME 只覆蓋預設資料夾 —— 顯式寫了 dataFile 時它不生效。
+- 回退情況：宿主 Node 低於 22.5 時沒有 node:sqlite，外掛會在同一個 dataFile 路徑上繼續用 JSON 格式存。功能一樣，只是沒有向量檢索。
+
+2.7 怎麼升級（升級會不會動資料）
+
+    :: 1. 替換外掛資料夾（或解開新的 exe），資料夾原樣不動
+    :: 2. 重跑安裝腳本 —— 它順帶修帶 BOM 的清單
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1
+    :: 3. 重新啟動 DSH
+
+升級不會做的事：不覆蓋、不遷移、不改名、不刪除任何記憶檔 —— 只換程式碼。
+
+0.4.0 第一次啟動只做一次遷移：
+
+1. 如果設定的記憶庫還沒有 .sqlite、但旁邊有 JSON，先把 JSON 複製成 memory.json.bak_pre_sqlite_<ISO時間戳>；
+2. 把副本匯入新庫；
+3. 原 JSON 一個位元組都不動，留在原處。
+
+0.3.x 舊使用者沿用原本的 dataFile，路徑不變。舊的 <外掛>\data\memory.json 只會被當遷移來源讀一次 —— 因為那個資料夾正是更新會替換的地方。
+
+2.8 向量索引怎麼調
+
+0.4.0 加了一層本機向量，讓「換個語序說同一件事」的問題也能匹配上。
+
+階段  做什麼
+-------
+切詞  字元 1/2/3-gram + 拉丁詞
+雜湊  FNV-1a 對應到 256 維
+加權  TF 加權，再做 L2 歸一
+儲存  Float32 BLOB，存進同一個 SQLite 庫
+打分  關鍵字得分 + round(cos × 12 × vectorWeight)；低於 vectorMinCos 不加分
+
+它不是什麼： 不是同義詞層級的語意。它只認共同的字和詞 —— 沒有意思模型、沒有 embedding 服務、不連網。
+
+這幾個鍵屬於部署層 —— 寫在 cordis.patch.yml 裡，改完重新啟動 DSH：
+
+    - id: thirdparty-memory
+      name: dsh-thirdparty-memory
+      config:
+        vector: true             # false = 純關鍵字檢索
+        vectorWeight: 1          # 0 等於完全關掉餘弦加成
+        vectorMinCos: 0.3        # 調高（0.45）更嚴，調低更鬆
+
+實用調法：
+
+- 無關記憶老匹配進來 → 把 vectorMinCos 提到 0.4–0.5；
+- 詞明明對得上卻沒匹配到 → 調低 vectorMinCos，或把 vectorWeight 提到 2；
+- 索引不額外佔 token：它存在條目旁邊，只影響「選哪些條目」，不增加注入開銷。
+
+2.9 DSH Desktop 裝完一啟動就結束碼 1（BOM 崩潰）
+
+症狀：Store/MSIX 版 DSH Desktop 在安裝完重新啟動後立刻關閉，自己重新啟動兩次，然後徹底不再重新啟動。
+
+原因：profile 的 package.json 被寫成了 UTF-8 with BOM。宿主的 readProfileManifest 直接跑 JSON.parse，拋 SyntaxError: Unexpected token '\uFEFF'，程序結束碼 1，連崩 3 次後宿主放棄自動重新啟動。
+
+    :: 修所有偵測到的 profile 清單（改寫前先備份）
+    powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair
+    :: 輸出：repair done: fixed=N clean=N invalid=N
+
+然後重新啟動 DSH。被修的檔案會先備份成 package.json.bak_bom_<時間戳>。0.4.0 的安裝器寫清單一律不帶 BOM，所以新安裝使用者不會再踩到。
+
+2.10 0.4.1 資料安全修復
+
+0.4.1 修復了 0.4.0 的 SQLite 儲存裡的一組資料安全缺陷。
+
+每次寫入後做 checkpoint。 每次寫入結束都會執行 PRAGMA wal_checkpoint(TRUNCATE)，把 WAL 合併回 memory.sqlite。主庫本身就帶著全部資料，不再是 4 KB 空殼；只備份這一個檔案就夠了 —— 0.4.0 時只拷主庫會得到 0 條，而且不報錯。
+
+讀庫失敗改為降級，不再靜默回退。 讀不出 SQLite 時不再回退到舊的 memory.json。記憶庫會被標記為 degraded：系統提示詞注入段和記憶頁都會顯示警告，寫明原因和庫檔案路徑，並且禁止寫入，避免過時的快照覆蓋真正的庫。
+
+遷移哨兵。 遷移完成後會在資料庫旁邊寫一個 memory.sqlite.migrated。之後庫檔案一旦遺失，哨兵會阻止外掛拿舊 JSON 再拼出一個庫。確實要重新遷移時，刪掉這個哨兵檔案即可。
+
+每天自動備份。 每天第一次寫入時用 VACUUM INTO 在 <儲存目錄>\backups\memory-<時間戳>.sqlite 產生一份快照 —— 單一自包含檔案，保留最近 30 份。
+
+寫入加上樂觀鎖。 每次寫入都會核對 SQLite meta 表裡的 revision；對不上就重新讀取、重新寫入，而不是覆蓋另一個處理程序剛寫進去的條目。
+
+remember 工具的修正。 remove 改為兩步：第一次呼叫只回顯條目，第二次帶 confirm=true 才真刪。search 輸出的是全域編號，而不是命中結果裡的序號。update 補上了 2048 位元組的內容長度驗證。
+
+行為修正。 status=archived 會被保留，global 條目可以取消置頂，標籤裡的「画像」不再被靜默刪除。
+
+2.11 0.4.3 修復
+
+0.4.3 是正確性版本，不需要遷移或改設定。
+
+一次讀只取一個快照。 條目列和 revision 計數現在在同一個讀事務裡取。以前另一個程序的寫入如果正好落在兩條語句之間，就會讀到「舊條目 + 新 revision」，樂觀鎖因此接受這份陳舊副本，靜默刪掉剛寫進去的那條。
+
+storageInfo() 不再建庫。 記憶頁查狀態時不再開啟（因而建立）一個不存在的 SQLite 檔案，所以「庫遺失 + 遷移哨兵」的降級狀態能撐過頁面重新整理。
+
+注入按對話隔離。 「最近一則使用者訊息」按對話各存一份，並透過 assembly 上下文查自己的對話，子代理或第二個視窗不會再改變另一個對話的選條。
+
+按編號刪除會複核。 如果預覽與確認之間編號位移，刪除會以 MEMORY_CONFIRM_MISMATCH 拒絕，而不是刪掉另一條；用 id 刪除可跳過該檢查。
+
+其他小修。 ephemeral 條目現在帶上建立它的那次呼叫的對話 id（以前永遠休眠）；超大請求主體現在回傳 413，而不是連線被重置。
+
+------------------------------------------------------------------------
+
+3. 日常使用
+-------
+
+3.1 remember 工具
+
+* list
+    必填: —
+    選填: —
+    效果: 列出全部條目及其編號、分類、優先級、狀態
+
+* read
+    必填: id 或 index
+    選填: —
+    效果: 讀某條的全文與中繼資料
+
+* add
+    必填: content
+    選填: category、priority、project、tags、ttlDays
+    效果: 新建；重複會被拒絕
+
+* update
+    必填: id 或 index
+    選填: content、category、priority、status、project、tags、ttlDays
+    效果: 原地改寫，id 不變，更新 updatedAt
+
+* remove
+    必填: id 或 index
+    選填: confirm
+    效果: 兩步刪除：第一次只回顯條目，帶 confirm=true 才真刪
+
+* search
+    必填: keyword
+    選填: —
+    效果: 在正文、標籤、專案上比對
+
+編號就是插入順序，list 裡、注入段裡、記憶頁上、search 輸出裡完全一致 —— 所以「第 3 條」永遠指同一條。
+
+system prompt 裡明確要求 agent 先搜再改，而不是不停新增：一個事實一條記憶，永遠是最新文字。
+
+3.2 分類怎麼選
+
+你要存的是…               用哪類                   理由
+---------------------------------------------
+每一輪都必須成立的規矩          global                永遠注入
+他會怎麼反應、在意什麼、什麼時候會反駁  persona               永遠注入，而且正是「它懂你」的來源
+綁定某個儲存庫的路徑/腳本/坑      project（+ project 名）  只在該專案啟用時才有資格
+只在今天有用的臨時上下文         ephemeral             隨工作階段結束而失效
+其它值得留的               general               依關鍵字選中
+
+不想思考分類、只想「永遠注入」：把內容以 [全局] 開頭，外掛會把標記去掉並按 global 處理。
+
+3.2b persona 條目必須長什麼樣
+
+persona 是讓助手「像認識你」的那一類，也是最容易寫歪的一類。用第三人稱給人下判斷，讀起來就是在背後替對方建檔；當使用者說「你憑什麼記錄我」時，通常說明寫的是側寫，不是記錄。
+
+區分「能用」和「發毛」的不是語氣，而是證據 —— 一條合格的畫像條目同時具備四個特徵：
+
+特徵    含義               為什麼重要
+----------------------------
+帶日期   寫明這條觀察是哪天得到的     沒有日期的觀察永遠不會過期，而畫像會過期
+有場景   指認到底發生了什麼        場景可以被核對，性格標籤不能
+有錨點   保留使用者的原話或一個明確動作  轉述正是臆造混進來的地方
+一句解讀  判斷放在最後，且只有一句     證據保持完整，解讀和證據分得開
+
+不合格的條目是反過來的樣子：形容詞開頭、沒有日期、沒有場景、讀者無法證實也無法否認。一整個檔案都是這種條目，就是「你憑什麼給我建檔」的來源。
+
+結構模板（只給結構，不給內容）：YYYY-MM-DD  <發生了什麼>  —— "<使用者原話>"  —— <一句解讀>。
+
+想不起場景和原話，就不要寫 —— 畫像欄留空，比編一條填滿更好。
+
+幾條實務推論：
+
+- 畫像會過期。帶上日期；觀察不再成立時用 update 改寫，而不是再堆一條互相矛盾的。
+- 不要寫「用心理語言複述了一遍 global 規矩」的畫像 —— 規矩本身該進 global。
+- 畫像每輪都注入，是你最貴的位元組。每句話都得配得上它的位置。
+
+3.3 到底注入了什麼，為什麼那些數字重要
+
+順序：global + persona（全量，受預算約束）→ project（有資格且符合的）→ ephemeral（同工作階段）→ general（關鍵字符合）→ 其餘條目的編號索引。
+
+- 一句話裡有多個話題時會被切成覆蓋單元 —— 先取被點名的標籤，再取依標點分出的分句 —— 每個單元各自貢獻條目，因此一個熱門話題無法獨占預算。
+- 顯式提取（「把所有關於 X 的記憶提取出來」）會跳過 minScore/maxRelevant，並把預算放寬到 recallMaxBytes。
+- pending、rejected、已過期的條目永遠不會被注入。
+
+抱怨開銷之前先看儀表板。 它會顯示目前注入的位元組/token 拆分，並在常駐記憶占到預算 40%–90% 時告警 —— 那就是該把專案類事實降級、或精簡全域條目的信號。
+
+3.4 幾個值得掌握的用法
+
+切專案。 把專案事實都記成 project 條目，切換專案時設定 currentProject（記憶頁 ▸ 設定，或改 patch）。這樣即使你不點名，該專案的條目也能憑關鍵字入選；取消設定它們就休眠。
+
+記錄踩過的坑。 直接在對話裡踩一次就行。judgeMode: model 下 agent 會自己判斷值得記，先搜尋有沒有同主題的舊條目，然後新增或改寫 —— 通常還會打上 pitfall / lesson 之類的標籤。你不需要說「幫我記一下」。
+
+改錯一條記憶。 記憶頁 ▸ 核心記憶庫 ▸ 點條目 ▸ 改文字、改分類/優先級/有效期 ▸ 儲存，或 刪除（二次確認：點一次，再輸入確認詞）。修改在 agent 下一輪就生效，不用重新啟動。
+
+收件匣紀律。 正規表示式擷取的畫像條目（僅 judgeMode: rules）會以 pending 進收件匣。真的通過，假的拒絕；被拒絕的條目永遠進不了提示詞。
+
+備份。 GET /api/export（記憶頁 ▸ 匯出 JSON）會把整個庫匯出成 JSON —— 那是可攜的備份，也是換執行環境後仍然能讀的一份。遷移時還會在舊 JSON 旁邊留 memory.json.bak_pre_sqlite_<時間戳>。
+
+------------------------------------------------------------------------
+
+4. 疑難解答
+-------
+
+4.1 agent 完全沒有記憶
+
+* 裝完重新啟動 DSH 了嗎？
+    命令 / 位置: —
+    期望: bundle 只在啟動時載入，重新啟動是必須的
+
+* 外掛掛載了嗎？
+    命令 / 位置: 設定 → 外掛
+    期望: 有 dsh-thirdparty-memory，且已掛載
+
+* bundle 登記了嗎？
+    命令 / 位置: profile 的 package.json → dsh.profile.bundles
+    期望: 含 dsh-thirdparty-memory
+
+* patch 生效了嗎？
+    命令 / 位置: dsh web --dump-config（命令列）或看 profile 的 cordis.patch.yml
+    期望: 有 - id: thirdparty-memory 區塊
+
+* junction 正常嗎？
+    命令 / 位置: <profile>\node_modules\dsh-thirdparty-memory
+    期望: 指向外掛資料夾
+
+* 對等相依可解析嗎？
+    命令 / 位置: <外掛>\node_modules\@deepseek-ai\dsh-tools\package.json
+    期望: 存在
+
+重跑 attach.ps1：每一行是 [ok]、[skip] 或 [fail]，[fail] 會告訴你哪個連結有問題。
+
+4.2 記憶頁打不開
+
+    dsh-memory-manager.exe --status      :: 0 = 正常，1 = 沒在跑，3 = 連接埠被別的程式占了
+    dsh-memory-manager.exe --start       :: 啟動它
+
+  > 想讀到結束碼得注意：管理器是 GUI 子系統程式，PowerShell 裡用 & 呼叫不會等它結束，$LASTEXITCODE 是空的。要拿數字就用 cmd /c "dsh-memory-manager.exe --status & echo %ERRORLEVEL%" 或 Start-Process -Wait -PassThru …。
+
+- 結束碼 3 → 連接埠歸別人。--port 7900，或系統匣 ▸ 變更連接埠…
+- 啟動成功但瀏覽器一片空白 → 同時試試 http://127.0.0.1:7891/ 和 127.5.0.1。
+- 之前好好的，突然白了 → 程序死了（被清理腳本殺掉、重新開機、或被 OOM）。--start 拉回來；DSH 啟動時外掛也會自己拉一次。
+
+4.3 「我的記憶沒了！」
+
+幾乎從來不是真的。按這個順序查：
+
+1. 儲存位置不同。 跑 dsh-memory-manager.exe --data，和外掛 patch 裡的 dataFile 對照。一次 --store 切換，或一個舊的 dataFile 值，就能立刻解釋「0 條」。
+2. 宿主不同。 兩套 DSH（MSIX + 可攜版）可能各有 profile。對兩者都跑一遍 attach.ps1。
+3. 待審 / 已拒絕。 儀表板是分開統計的；未通過的事實都躺在收件匣裡。
+4. 已過期。 expiresAt 在過去的話條目會被靜默隱藏 —— 篩選項 ▸ ⏰ 已過期。
+5. 記憶庫真的壞了（極少見，多半是寫入被打斷）。活檔案是 memory.sqlite，以及執行期間旁邊的 -wal / -shm。0.4.1 起每次寫入都會把 WAL 合併回主庫，主庫本身就是完整的。先停記憶頁（--stop），把遺留的 -wal / -shm 移開，再用備份裡的 memory.sqlite 還原（或重新匯入一份匯出）；不要趁記憶頁執行時手改這些檔案。
+6. JSON 回退檔讀不出來 —— 驗證能否解析：node -e "JSON.parse(require('fs').readFileSync('memory.json','utf8'))"。如果用的是 SQLite，就看 GET /api/state 的 storage 欄位（裡面有實際後端和路徑），不要手工解析。
+
+4.4 老是記進亂七八糟的東西
+
+- 切到 judgeMode: model（由模型判斷）或 off（只回應明確要求）—— 正規表示式備援才是噪音來源。
+- 保持 inbox: true，讓正規表示式擷取的畫像條目必須人工通過。
+- 把有問題的條目刪掉（記憶頁，二次確認）。擷取器本身也會拒絕被否定的句子、後設話語（「當使用者說記住……」）以及技術性指令。
+
+4.5 提示詞開銷太大 / 模型被帶偏
+
+- 儀表板 ▸ 那條進度條會告訴你哪一段最貴；常駐（global + persona）通常是元凶。
+- 把專案事實降級成 project，只在需要時設 currentProject。
+- 調低 maxBytes、maxRelevant、perCluster；調高 minScore。
+- 關掉 showIndex 能得到最省的提示詞（代價是失去可發現性）。
+- 畫像類記憶又便宜又有用 —— 先刪那些「像規章」的全域條目，別先砍畫像。
+
+4.6 Windows 特有的坑
+
+* 用排程工作自啟動
+    症狀: Windows Defender 可能把自建的排程工作按啟發式判成木馬（註冊工作時報 0x800700E1）
+    處理: 不要建立排程工作；用啟動資料夾放 exe，或登入後從系統匣啟動
+
+* PowerShell 5.1 + UTF-8 腳本
+    症狀: attach.ps1 解析失敗、中文變成亂碼
+    處理: 腳本是 UTF-8 帶 BOM 發佈的；不要另存成無 BOM 的 UTF-8
+
+* profile 的 package.json 帶了 BOM
+    症狀: DSH Desktop 每次啟動都結束碼 1：連崩三次後不再自動重新啟動
+    處理: 跑 attach.ps1 -Repair；0.4.0 的安裝器寫入清單不帶 BOM
+
+* wscript + 非 ASCII 路徑
+    症狀: 啟動器找不到 server.js
+    處理: 啟動器是純 ASCII 且在執行時算路徑；外掛與記憶庫請放 ASCII 路徑
+
+* 防毒拖慢或攔截首次執行
+    症狀: 解壓很久，或 node.exe 被隔離
+    處理: 放行該 exe 及其 %LOCALAPPDATA% 資料夾
+
+* junction 與複製混用
+    症狀: 改原始碼後看不到變化
+    處理: junction 立刻反映改動，複製不會 —— 重新複製或改用 junction
+
+* 同時開兩個 DSH 宿主
+    症狀: 記憶頁服務一個庫，另一個宿主用另一個庫
+    處理: 讓兩個 profile 指向同一個 dataFile
+
+4.7 解除安裝
+
+1. 從每個 profile 的 cordis.patch.yml 刪掉 - id: thirdparty-memory 區塊，並從 dsh.profile.bundles 裡刪掉 dsh-thirdparty-memory。
+2. 刪除 <profile>\node_modules\dsh-thirdparty-memory（以及外掛裡你自己建的 dsh-tools junction）。
+3. 重新啟動 DSH。
+4. 結束記憶頁程序（--stop），刪掉外掛資料夾，以及 —— 如果你想讓記憶消失 —— 記憶庫資料夾（%APPDATA%\dsh-thirdparty-memory\，或 dataFile 指向的位置）和 %LOCALAPPDATA%\dsh-thirdparty-memory。
+5. 記憶只存在於那個本機 SQLite 庫裡，沒有上傳到任何地方。
+
+------------------------------------------------------------------------
+
+附錄 A — 檔案地圖
+-----------
+
+    dsh-thirdparty-memory/
+    ├── index.js              外掛入口（system prompt section/context、remember 工具、事件、拉起記憶頁）
+    ├── core.js               純邏輯：資料模型、遷移、分詞、選條、呈現、token 估算
+    ├── server.js             記憶頁服務（node:http，僅回環）
+    ├── ui.html               記憶頁介面（單檔，無外部資源，三語）
+    ├── cordis.patch.yml      bundle patch（插入 thirdparty-memory 列）
+    ├── package.json          套件清單（dsh.bundle.patch，對等相依 dsh-tools）
+    ├── attach.ps1            多宿主安裝腳本（junction + bundles + patch + 對等相依 + dataFile）
+    ├── build-single-exe.ps1  重建單檔管理器
+    ├── build-release.ps1     打包 release\dsh-thirdparty-memory-<版本>.zip（含敏感路徑檢查）
+    ├── tools/md2txt.mjs      從 .md 原始檔重新產生 .txt 文件
+    ├── manager/
+    │   ├── DshMemoryManager.cs   單檔管理器原始碼（內嵌 Node 與文件）
+    │   └── Program.cs            舊的「同資料夾」管理器原始碼（不隨包發佈）
+    ├── start-memory-page.vbs / .bat、stop-memory-page.bat、启动记忆页.bat、停止记忆页.bat
+    ├── docs/                 教學 tutorial.md/.txt（en、zh-CN、zh-TW）、NODE-LICENSE.txt
+    ├── examples/             cordis.patch.yml.example
+    ├── data/memory.json      舊版預設記憶庫位置 —— 0.4.0 起只作唯讀遷移來源
+    ├── README.md / README.zh-CN.md / README.zh-TW.md（另有 .txt 版）
+    └── LICENSE
+
+活記憶庫已經不在外掛資料夾裡了：預設在 %APPDATA%\dsh-thirdparty-memory\memory.sqlite。
+
+附錄 B — 介面
+---------
+
+* GET
+    路徑: /
+    請求主體: —
+    說明: 記憶頁 HTML（語言由伺服端注入）
+
+* GET
+    路徑: /api/state?q=&session=
+    請求主體: —
+    說明: 設定、條目、儀表板、預覽
+
+* GET
+    路徑: /api/export
+    請求主體: —
+    說明: 完整 JSON
+
+* POST
+    路徑: /api/entry/add
+    請求主體: {content, category?, project?, priority?, tags?, ttlDays?}
+    說明: 400 空內容，409 重複
+
+* POST
+    路徑: /api/entry/update
+    請求主體: {id, ...fields}
+    說明: 支援 ttlDays、clearExpiry
+
+* POST
+    路徑: /api/entry/delete
+    請求主體: {id}
+    說明: 依設計一次一條
+
+* POST
+    路徑: /api/inbox
+    請求主體: `{id, action: accept\
+    說明: reject, content?}`
+
+* POST
+    路徑: /api/inbox/bulk
+    請求主體: {action}
+
+* POST
+    路徑: /api/settings
+    請求主體: {enabled?, autoExtract?, judgeMode?, injectMode?, showIndex?, lang?, maxBytes?, …}
+    說明: {reset:true} 回復預設
+
+* POST
+    路徑: /api/preview
+    請求主體: {q?, session?}
+    說明: 呈現注入結果
+
+所有 POST 都要求 Content-Type: application/json。
+
+附錄 C — 速查
+---------
+
+    :: 管理器
+    dsh-memory-manager.exe --install / --start / --stop / --restart / --status
+    dsh-memory-manager.exe --port 7900 --store D:\dsh-memory-data --lang zh-TW
+    
+    :: 掛載到所有偵測到的 profile，記憶庫放在外掛資料夾之外
+    powershell -ExecutionPolicy Bypass -File attach.ps1 -DataFile "D:/dsh-memory-data/memory.json"
+    
+    :: 去掉 profile 清單的 UTF-8 BOM（否則 DSH Desktop 結束碼 1），然後重新啟動 DSH
+    powershell -ExecutionPolicy Bypass -File attach.ps1 -Repair
+    
+    :: 改預設記憶庫資料夾
+    set DSH_THIRDPARTY_MEMORY_HOME=D:\dsh-memory-data
+    
+    :: 重建單檔 exe（需要 .NET Framework 4.x 的 csc.exe）
+    powershell -ExecutionPolicy Bypass -File build-single-exe.ps1
+    
+    :: 打包發佈 zip（會檢查敏感路徑，絕不包含真實記憶）
+    powershell -ExecutionPolicy Bypass -File build-release.ps1
+    
+    :: 從 Markdown 重新產生 .txt 文件
+    node tools/md2txt.mjs README.md docs/tutorial.md
+
+授權：MIT。內嵌的 Node 執行環境同樣是 MIT —— 見 docs/NODE-LICENSE.txt。

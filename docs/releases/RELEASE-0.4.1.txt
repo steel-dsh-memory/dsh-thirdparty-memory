@@ -1,0 +1,139 @@
+# dsh-thirdparty-memory v0.4.1 发布说明
+
+发布日期：2026-11-10
+类型：数据安全修复版（无新增功能）
+上一版：v0.4.0（2026-11-09）
+
+---
+
+## 一句话
+
+v0.4.0 有三个**不会报错**的丢数据路径，v0.4.1 把它们全堵上，
+并且给记忆库补上了备份、核对与冲突检测。
+
+---
+
+## 一、修了什么（按严重程度）
+
+### P0-1　记忆其实不在 `memory.sqlite` 里，全在 `-wal` 里
+
+**现象**：库目录下 `memory.sqlite` 只有 4,096 字节，真正的 34 条记忆和 34 个向量
+全在 `memory.sqlite-wal`（630,392 字节）里。只复制 `memory.sqlite` 得到的是空库，
+而且打开这个空壳会**静默重建**成一个空数据库，返回"0 条记忆"，不报错。
+
+**原因**：`open()` 只设了 `journal_mode = WAL`，全程没有一次 `wal_checkpoint`，
+主库永远追不上 WAL。
+
+**修复**：`writeStore()` 在提交、重建向量、自动备份之后执行
+`PRAGMA wal_checkpoint(TRUNCATE)`。主库从此自带全部数据，单文件备份有效。
+`checkpointQuietly()` 包了 try/catch，别的连接正在读时返回 busy 而不影响写入。
+
+### P0-2　读库失败会静默回退到 11 月 9 日的旧快照
+
+**现象**：`loadStore()` 读库抛错时直接 `return loadStoreJson(target)`，
+读的是迁移前的 `memory.json`。实测：库损坏 → 不报错，直接返回旧快照条目；
+紧接着的一次写入会把旧快照**永久固化**成新库，之后新增的记忆全部消失。
+
+**修复**：
+- 读库失败不再静默回退：返回带 `degraded` 标记的库，注入段和记忆页都显示醒目告警；
+- `saveStore()` 在降级状态下**拒绝写入**（抛 `MEMORY_DEGRADED`），宁可报错也不覆盖；
+- 新增迁移哨兵 `memory.sqlite.migrated`：迁移过的库若文件丢失，`read()` 直接返回
+  降级空库，**绝不再从旧 JSON 复活**；确实想重新迁移时手动删掉该哨兵文件。
+
+> 本次升级已为现有安装补写该哨兵：`F:\dsh-memory-data\memory.sqlite.migrated`
+
+### P0-3　两个进程同时写会互相吞掉整条记忆
+
+**现象**：每次保存都是 `DELETE FROM entries` + 按内存副本全量重插，
+无锁、无版本号。插件天生有两个写进程（宿主里的 `remember` 工具 + 它 spawn 的记忆页）。
+实测两个进程各写一条，最终只剩一条，无报错。
+
+**修复**：`meta` 表新增 `revision`，作为乐观锁。
+- 读的时候记下 revision，写之前在同一条事务里比对，不一致即抛 `MEMORY_CONFLICT`；
+- 新增 `mutateStore()`：冲突时重读、重放，最多 6 次；插件与记忆页的读改写全部改走它；
+- 向量缓存也跟着 revision 失效，避免拿旧快照打分。
+
+### P1　没有任何自动备份
+
+**修复**：每次写入后检查 `last_backup_at`，超过 24 小时就用
+`VACUUM INTO` 生成 `<数据目录>/backups/memory-<时间戳>.sqlite`，
+单文件自包含（不依赖 `-wal`），保留最近 30 份，并记录 `quick_check` 结果。
+备份失败不会打断主流程。
+
+### P2　`remember` 工具与存储层的若干行为缺陷
+
+| 问题 | 修复 |
+|---|---|
+| `search` 打的是命中序号而非全局编号，照它 `read` 会读错条目 | 改为全局编号 |
+| `update` 不校验 2048 字节上限 | 补上校验 |
+| `status=archived` 被静默改成 `active` | 保留 archived |
+| `global` 条目无法取消置顶 | 只认显式 `pinned` |
+| 标签里的 `画像` 被静默删除 | 不再删除 |
+| `remove` 一次调用就删（与站点承诺的"二次确认"不符） | 第一次只回显，第二次带 `confirm=true` 才真删 |
+| 记忆页 `numbering.bucket` 恒为 `rest` | 按实际分区返回 |
+| 记忆页 `update` 同样缺长度校验 | 补上，返回 400 |
+
+---
+
+## 二、验证结果
+
+全部在隔离沙箱中进行，未触碰生产记忆库。
+
+| 场景 | 结果 |
+|---|---|
+| 写入后进程退出，只复制 `memory.sqlite` | 读到 3/3 条（0.4.0 下为 0 条） |
+| 库文件损坏 | 进入降级状态，写入被拒 `MEMORY_DEGRADED`，未发生回退覆盖 |
+| 迁移后删库文件 | 返回降级空库，**没有**重建库文件，**没有**用旧 JSON 复活，写入被拒 |
+| 4 个进程并发各写一条 | 7 条全在（基线 3 + 4），revision 5，无丢失 |
+| 首次写入后 | `backups/` 下自动生成 36,864 字节自包含快照 |
+| 端到端 `remember` 工具 | add / 重复检测 / list / search 编号 / read / update 超长被拒 / remove 两次确认 / 注入段，全部符合预期 |
+| 语言键完整性 | HTML 引用的 152 个 i18n 键全部命中词典 |
+
+另：`core.js` / `index.js` / `server.js` / `site/assets/app.js` 均通过 `node --check`。
+
+---
+
+## 三、升级方式
+
+只换代码，不碰记忆文件：
+
+1. 用新版本覆盖插件目录（`F:\deepseek\长期记忆`）；
+2. 重启 DSH（新代码在宿主启动时加载）；
+3. 记忆页若是常驻进程，结束旧进程后由插件重新拉起。
+
+**兼容性**：旧库（无 `meta.revision`）首次写入时自动补成 1，无需迁移。
+记忆库文件不需要任何手工改动。
+
+---
+
+## 四、回滚方式
+
+1. 源码回滚点：`backups\pre_0.4.1_<时间戳>\`（core.js / index.js / server.js / ui.html / RELEASE-0.4.0.txt）
+2. 数据回滚点：`F:\dsh-memory-data\backups\memory-pre-0.4.1.sqlite`（36 条，自包含）
+3. 回滚步骤：把上述源码覆盖回插件根目录 → 重启 DSH。
+   v0.4.1 写入的 `meta.revision` 对 0.4.0 是未知键，0.4.0 会忽略它，不需要清库。
+
+---
+
+## 五、已知遗留
+
+- 自动备份与原始数据在**同一块盘**（F:）。只能防误删、防逻辑错误，防不了盘坏；
+  建议再把 `backups/` 定期复制到另一块盘或 U 盘。
+- 数据目录若放在网络盘/WSL 挂载点上，SQLite 可能无法启用 WAL，届时会退化为
+  rollback journal（数据仍安全，但没有 checkpoint 这层保障）。
+- `ui.html` 只复核了写入路径与轮询，未做完整界面逻辑审计。
+- 站点 `https://steel.dsh-memory.pages.dev` 的下载包已重建为 0.4.1；
+  历史版本仍不在站上提供下载。
+
+---
+
+## 六、涉及文件
+
+```
+core.js       +  WAL checkpoint / 降级态 / 迁移哨兵 / revision 乐观锁 / mutateStore / 自动备份 / 三项 normalize 修正
+index.js      ~  add/update/remove/captureAuto 改走 mutateStore；search 全局编号；update 长度校验；remove 二次确认
+server.js     ~  mutate 改走 mutateStore；降级横幅；update 长度校验；numbering 分区修正
+site/          ~  index.html / assets/app.js：版本号、0.4.1 时间线条目、4 条 Bug 记录、三语文案
+package.json  ~  version 0.4.1
+README / docs ~  三语同步（0.4.1 数据安全修复小节）
+```

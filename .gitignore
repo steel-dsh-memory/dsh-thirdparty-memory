@@ -1,0 +1,33 @@
+# ── user data: never commit ────────────────────────────────────────────────
+data/
+backups/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite.migrated
+*.json.bak_pre_sqlite_*
+secrets/
+.env
+
+# ── build artefacts (ship through GitHub Releases) ─────────────────────────
+release/
+dsh-memory-manager.exe
+site/
+video/
+*.zip
+
+# ── test scratch ───────────────────────────────────────────────────────────
+tests/tmp-*/
+tests/*/tmp/
+tests/*/results/
+tests/*/edge-profile/
+tests/*/edge-probe-*/
+node_modules/
+.wrangler/
+
+# ── editors / OS ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.log
+Thumbs.db
+Desktop.ini

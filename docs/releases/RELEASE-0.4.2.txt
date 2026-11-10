@@ -1,0 +1,78 @@
+DSH Third-Party Long-Term Memory Plugin — Release 0.4.2
+========================================================
+
+Released  : 2026-11-10
+Licence   : MIT
+Status    : unofficial third-party project, not affiliated with DeepSeek
+
+Scope
+-----
+Maintenance release. No storage format change, no migration. Upgrading from
+0.4.1 is a drop-in replacement of the plugin files; the SQLite store and the
+JSON store are read exactly as before.
+
+Changes
+-------
+1. The web delete endpoint honours the CLI rule.
+
+   POST /api/entry/delete used to delete on a bare id. The command line had
+   required confirm=true since 0.4.1, so the HTTP path was strictly weaker than
+   the CLI: anything that could reach the page could delete an entry without the
+   second confirmation the UI asks for. The endpoint now answers 409 unless the
+   body carries confirm: true. The two UI call sites pass it after their own
+   confirmation step.
+
+2. No bulk wipe.
+
+   The "delete all memories" affordance is deliberately absent. The only ways to
+   clear the store are to delete entries one at a time with the double
+   confirmation, or to remove the data file yourself. An unreleased draft of this
+   version shipped a WIPE-gated endpoint plus a settings button; both were
+   withdrawn before release.
+3. storageInfo no longer reports zeros.
+
+   It read revision, last_backup_at and the vector count from a database handle
+   that had not been opened yet, so on a fresh process it always returned 0. The
+   memory page therefore always claimed there was no backup, even while the
+   plugin was writing backups on every day's first write. It now opens the store
+   before reading meta. The fallback branch also returns the same field names as
+   the normal branch (dbFile instead of file).
+
+4. Regression pass.
+
+   Every endpoint was exercised against a sandbox store (separate data file and
+   port): state, export, preview, entry add / update / delete, inbox, inbox
+   bulk, settings, wipe. Validation limits re-checked (empty content, >2048 byte
+   content, malformed JSON, duplicate content, unknown id). 5000-entry
+   performance: load 15 ms, injection 48 ms, store 8.2 MB. 200 sequential
+   /api/state requests averaged 1.1 ms.
+
+Known limits (unchanged)
+------------------------
+- Corruption is detected when a process opens the store, not while a handle is
+  already open. A running process keeps its handle; the file cannot be moved or
+  deleted meanwhile.
+- The JSON fallback path (runtimes without node:sqlite) still has no revision
+  lock, so two writers can overwrite each other there.
+- WAL checkpoint after commit can be skipped if another connection is reading
+  at that moment (busy, not an error). Data is never lost; the single-file
+  backup property is only guaranteed at the last successful checkpoint.
+- Degraded state is a one-way latch: writing is refused until the store is
+  repaired or the sentinel is removed by hand.
+- No periodic integrity_check; quick_check runs at backup time only.
+- Retrieval is substring matching over CJK n-grams plus vector scoring, no
+  segmentation and no synonyms.
+
+Files
+-----
+core.js  index.js  server.js  ui.html  manifest.json  package.json
+README.txt  README.zh-CN.txt  README.zh-TW.txt
+RELEASE-0.4.2.txt  RELEASE-0.4.1.txt  AUDIT-2026-11-10.txt
+build-single-exe.ps1  build-release.ps1  dsh-memory-manager.exe
+
+Verification performed on Windows, Node 24.21.0 (node:sqlite available):
+- write, exit, copy memory.sqlite alone -> all entries readable
+- corrupt memory.sqlite, restart -> degraded, writes refused with MEMORY_DEGRADED
+- delete memory.sqlite with sentinel present -> no resurrection, no rebuild
+- two processes writing concurrently -> both entries survive
+- delete without confirm -> 409; with confirm -> 200; repeated -> 404

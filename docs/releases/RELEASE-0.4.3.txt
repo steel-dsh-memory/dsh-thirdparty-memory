@@ -1,0 +1,118 @@
+DSH Third-Party Long-Term Memory Plugin — Release 0.4.3
+========================================================
+
+Released  : 2026-11-10
+Licence   : MIT
+Status    : unofficial third-party project, not affiliated with DeepSeek
+
+Scope
+-----
+Correctness release. No storage-format change, no configuration change, no
+migration. Upgrading from 0.4.2 is a drop-in replacement of the plugin files:
+the SQLite store and the JSON store are read exactly as before. The manager exe
+is rebuilt only because it embeds the plugin sources.
+
+Changes
+-------
+1. One snapshot per read: the concurrency defect behind silent lost updates.
+
+   readStore read the entry rows and the revision counter in two separate
+   statements. The DSH host and the memory page are always two writers, so when
+   one committed between the two statements the other read OLD entries together
+   with a NEW revision. The optimistic lock then saw a matching revision and let
+   the write through, deleting the entry that had just been added — with no
+   error and no warning.
+
+   Reproduced with four processes writing 25 entries each: revision reached 101
+   while the table held 100. readStore now wraps rows, settings and revision in
+   one read transaction (BEGIN ... COMMIT).
+
+2. storageInfo() no longer creates an empty database.
+
+   The status call used by the memory page opened the SQLite file to read its
+   counters. Opening a missing path creates an empty database, which silently
+   disabled the "database lost + migration sentinel" degraded state after one
+   page refresh: the next read saw an ordinary empty store and accepted writes.
+   storageInfo() now leaves a missing file alone and reports zeros.
+
+3. Injection follows the right conversation.
+
+   The latest user message was cached in one process-wide variable. Any session
+   — a second window or a subagent — overwrote it, so one conversation's
+   injection was selected by another conversation's text (observed: the main
+   session asked about a plugin bug, a subagent mentioned a different project,
+   and the main session's injection switched to that project's memories). The
+   cache is now per session; each prompt assembly looks up its own session via
+   the assembly context (scope.session.id), and the process-wide fallback only
+   accepts top-level sessions.
+
+4. Deleting by number re-checks the target.
+
+   remember remove echoes the entry first and deletes on the second call with
+   confirm=true. If a write in between shifted the numbering, the confirmed
+   number pointed at a different entry and the wrong memory was deleted
+   (reproduced: preview #2, delete #1, confirm #2 — the entry that had been #3
+   was deleted). The preview records the entry id per number; a confirm that
+   resolves to a different id is refused with MEMORY_CONFIRM_MISMATCH and asks
+   for a fresh preview. Deleting by id is unaffected.
+
+5. ephemeral entries are bound to their session.
+
+   They were stored with an empty sessionId, so the category could never match
+   the running session and was never injected. The session now comes from the
+   tool call itself (exec.agent.session.id).
+
+6. Oversized request bodies answer 413.
+
+   A body over 128 KB ended in a connection reset instead of the intended 413
+   because the handler destroyed the socket before answering. It now answers
+   413 and drains the request.
+
+7. One corrupted character in a server.js comment was replaced.
+
+Verification performed on Windows, Node 24.21.0 (node:sqlite available)
+------------------------------------------------------------------------
+- core layer regression: 39 checks pass (CRUD, numbering, TTL, migration,
+  backup retention, degraded states, JSON fallback coherency)
+- HTTP surface regression: 30 checks pass on an isolated store and port
+  (state, export, preview, add / update / delete, inbox, bulk, settings,
+  malformed input, oversized body, unknown routes)
+- concurrency: four processes x 25 entries, three rounds; every round ends with
+  101 entries and revision 101, no duplicate ids, and the main file alone reads
+  back the full store
+- database loss with sentinel: degraded, storageInfo creates nothing, writes
+  refused (MEMORY_DEGRADED)
+- corrupt database: degraded, file left byte-for-byte unchanged, writes refused
+- JSON -> SQLite migration: source JSON unchanged, .bak_pre_sqlite_* written,
+  .migrated sentinel written, no second migration
+- memory page rendered by headless Edge: entries and counts render, no untranslated
+  keys, entry content containing <img onerror> is displayed as text (no XSS)
+- real store untouched by the test run (59 entries before and after; WAL 0 bytes)
+
+Known limits (unchanged)
+------------------------
+- Corruption is detected when a process opens the store, not while a handle is
+  already open. A running process keeps its handle; the file cannot be moved or
+  deleted meanwhile.
+- The JSON fallback path (runtimes without node:sqlite) still has no revision
+  lock, so two writers can overwrite each other there.
+- WAL checkpoint after commit can be skipped if another connection is reading
+  at that moment (busy, not an error). Data is never lost; the single-file
+  backup property is only guaranteed at the last successful checkpoint.
+- Degraded state is re-evaluated on every read: repairing the store or removing
+  the sentinel by hand clears it. (0.4.2's note called it a one-way latch; it
+  is not.)
+- No periodic integrity_check; quick_check runs at backup time only.
+- Retrieval is substring matching over CJK n-grams plus vector scoring, no
+  segmentation and no synonyms. The "extract everything about X" phrase pattern
+  is Chinese-only.
+- judgeMode is wired into the configuration and the memory page but does not
+  change extraction behaviour yet: model / rules / off all run the same
+  rule-based extraction when autoExtract is on. Documented, not fixed here.
+
+Files
+-----
+core.js  index.js  server.js  ui.html  package.json  cordis.patch.yml
+README (three languages, .md + .txt)  docs/tutorial (three languages)
+RELEASE-0.4.3.txt  build-single-exe.ps1  build-release.ps1
+dsh-memory-manager.exe  manager/DshMemoryManager.cs

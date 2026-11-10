@@ -1,0 +1,32 @@
+# dsh-thirdparty-memory — bundle patch shipped with the package.
+#
+# The profile's root entry list is empty, so this row MUST be inserted with the
+# `insert` form. A flat `- id: ... / name: ...` row is treated by the patch
+# algorithm as "override an existing row", finds nothing, and is silently skipped.
+# Users can override any key below by writing the same id in their own
+# cordis.patch.yml — later patches win.
+#
+# 中文：profile 的根 entry 列表是空的，所以必须用 `insert` 形式插入；
+# 只写 `- id:` 会被当成"覆盖不存在的行"而跳过。用户可在自己的
+# cordis.patch.yml 里用同一个 id 覆盖任意键（后写优先）。
+
+- insert:
+    - id: thirdparty-memory
+      name: dsh-thirdparty-memory
+      config:
+        enabled: true
+        # model = the agent decides what is worth remembering (recommended)
+        # rules = zero-token regex fallback · off = never auto-record
+        judgeMode: model
+        autoExtract: true
+        inbox: true
+        injectMode: relevant
+        maxBytes: 8192
+        maxEntries: 50
+        # Local vector layer (zero dependency, offline): hashed char/word n-grams
+        # stored as Float32 BLOBs in SQLite, cosine similarity blended with keyword
+        # scoring. Set vector: false for keyword-only retrieval.
+        # 本地向量层（零依赖、不联网）：哈希 n-gram 向量存 SQLite，与关键词混合打分。
+        vector: true
+        vectorWeight: 1
+        vectorMinCos: 0.3

@@ -1,0 +1,41 @@
+# dsh-thirdparty-memory — example user-layer patch.
+#
+# Append this block to your profile's cordis.patch.yml
+# (attach.ps1 writes it for you; this file is for the manual route).
+# Every value here is optional — omit a key to keep the plugin default.
+#
+# 中文：把下面这个块加到 profile 的 cordis.patch.yml 末尾即可；
+# 所有键都是可选的，不写就用插件默认值。
+
+- id: thirdparty-memory
+  name: dsh-thirdparty-memory
+  config:
+    enabled: true            # hard switch: off = no injection, no extraction, add fails
+    judgeMode: model         # model | rules | off  — who decides what to remember
+    autoExtract: true        # only used when judgeMode: rules
+    inbox: true              # rule-extracted persona facts need review before injection
+    injectMode: relevant     # relevant = keyword-selected · all = everything
+
+    maxBytes: 8192           # injection byte budget
+    maxRelevant: 6           # max matched entries per turn
+    perCluster: 2            # entries per topic when several topics appear
+    minScore: 6              # relevance threshold (higher = stricter)
+    recallMaxBytes: 16384    # widened budget for explicit recall
+    maxRecall: 40            # max entries returned by explicit recall
+    showIndex: true           # append the numbered index of unselected entries
+    indexChars: 18           # title length inside that index
+
+    # currentProject: my-project   # set while you work inside one project
+    # dataFile: 'D:/dsh-memory-data/memory.json'   # store path; a .json path maps to the same-name .sqlite
+
+    # Local vector index (zero dependency, offline). Retrieval = keyword score plus a
+    # cosine bonus round(cos * 12 * vectorWeight); below vectorMinCos nothing is added.
+    # It catches literal closeness (same characters/words, reordered clauses) - it is
+    # not synonym-level semantics. Omit these three keys to keep the defaults.
+    vector: true             # false = keyword-only retrieval
+    vectorWeight: 1          # weight of the cosine bonus; 0 disables it
+    vectorMinCos: 0.3        # cosine floor between 0 and 1 (higher = stricter)
+
+    pageServer: true         # let the plugin spawn the memory page
+    pageHost: 127.5.0.1
+    pagePort: 7891

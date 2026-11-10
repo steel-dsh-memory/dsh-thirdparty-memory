@@ -1,0 +1,58 @@
+{
+  "name": "dsh-thirdparty-memory",
+  "version": "0.4.3",
+  "description": "Unofficial third-party long-term memory plugin for DeepSeek Harness: five memory kinds (global / project / persona / ephemeral / general), a review inbox, keyword + local-vector relevant injection, SQLite storage (automatic read-only JSON migration), a local memory page and a single-file Windows manager. Updates never touch memory files. 第三方开源长期记忆插件（非官方）。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./core": "./core.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "core.js",
+    "server.js",
+    "ui.html",
+    "cordis.patch.yml",
+    "attach.ps1",
+    "dsh-memory-manager.exe",
+    "manager/DshMemoryManager.cs",
+    "start-memory-page.vbs",
+    "start-memory-page.bat",
+    "stop-memory-page.bat",
+    "启动记忆页.bat",
+    "停止记忆页.bat",
+    "README.md",
+    "README.zh-CN.md",
+    "README.zh-TW.md",
+    "docs/",
+    "examples/",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "memory",
+    "long-term-memory",
+    "third-party",
+    "agent-memory"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6 || ^0.2.0-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  }
+}

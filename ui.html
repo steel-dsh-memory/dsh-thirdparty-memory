@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memory · DSH</title>
+<!--__LANG_SCRIPT__-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:#f6f6f8; --panel:#fff; --panel-2:#fafafb; --line:#e5e5ea; --text:#1b1b1f;
+    --muted:#85858e; --accent:#2f6bff; --danger:#d92b2b; --ok:#12a150; --warn:#c77700; --chip:#eeeef2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#121214; --panel:#1b1b1f; --panel-2:#202026; --line:#2c2c33; --text:#ececf1; --muted:#92929c; --chip:#26262c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+  .app { display:grid; grid-template-columns:224px minmax(0,1fr); min-height:100vh; }
+  .nav { border-right:1px solid var(--line); padding:18px 12px; display:flex; flex-direction:column; gap:4px; background:var(--panel-2); }
+  .brand { font-size:16px; font-weight:650; padding:4px 10px 14px; }
+  .nav button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; border:none; background:transparent; padding:9px 10px; border-radius:9px; cursor:pointer; }
+  .nav button:hover { background:var(--chip); }
+  .nav button[aria-current="true"] { background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent); font-weight:600; }
+  .nav .grow { flex:1; }
+  .badge { font-size:11px; padding:1px 7px; border-radius:999px; background:var(--chip); color:var(--muted); }
+  .badge.warn { background:color-mix(in srgb,var(--warn) 20%,transparent); color:var(--warn); }
+  .navfoot { margin-top:auto; padding:12px 10px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11px; word-break:break-all; }
+  main { padding:18px 22px 60px; min-width:0; }
+  .top { display:flex; gap:10px; align-items:center; margin-bottom:16px; }
+  .top input[type="search"] { flex:1; height:38px; padding:0 14px; border-radius:10px; border:1px solid var(--line); background:var(--panel); outline:none; }
+  .top input[type="search"]:focus-visible { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent); }
+  button.btn { border:1px solid var(--line); background:var(--panel); border-radius:9px; padding:8px 13px; cursor:pointer; white-space:nowrap; }
+  button.btn:hover { border-color:var(--muted); }
+  button.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.btn.danger { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 40%,transparent); }
+  button.btn.ghost { background:transparent; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  h3 { font-size:13px; margin:0 0 8px; color:var(--muted); font-weight:600; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .stack { display:flex; flex-direction:column; gap:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .chip { border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:5px 12px; cursor:pointer; font-size:13px; }
+  .chip[aria-pressed="true"] { background:color-mix(in srgb,var(--accent) 14%,transparent); border-color:color-mix(in srgb,var(--accent) 45%,transparent); color:var(--accent); font-weight:600; }
+  .list { display:flex; flex-direction:column; gap:9px; }
+  .item { display:flex; gap:12px; align-items:flex-start; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+  .item:hover { border-color:color-mix(in srgb,var(--accent) 35%,var(--line)); }
+  .item .icon { font-size:17px; line-height:1.4; }
+  .item .body { flex:1; min-width:0; cursor:pointer; }
+  .item .content { word-break:break-word; }
+  .item .meta { color:var(--muted); font-size:12px; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .item .acts { display:flex; gap:6px; flex:0 0 auto; }
+  .item .acts button { border:1px solid var(--line); background:transparent; border-radius:7px; padding:3px 9px; font-size:12px; cursor:pointer; }
+  .item .acts button:hover { border-color:var(--muted); }
+  .tag { background:var(--chip); border-radius:999px; padding:1px 8px; font-size:11px; }
+  .empty { color:var(--muted); text-align:center; padding:34px 0; }
+  .bar { height:26px; border-radius:7px; overflow:hidden; display:flex; background:var(--chip); }
+  .bar span { height:100%; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:12px; color:var(--muted); }
+  .legend i { width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; }
+  .kpi { background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:11px 13px; }
+  .kpi b { display:block; font-size:19px; }
+  .kpi span { color:var(--muted); font-size:12px; }
+  .notice { border-radius:10px; padding:10px 12px; font-size:13px; }
+  .notice.warn { background:color-mix(in srgb,var(--warn) 12%,transparent); color:var(--warn); }
+  .notice.info { background:color-mix(in srgb,var(--accent) 10%,transparent); color:var(--accent); }
+  .fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field > span { font-size:12px; color:var(--muted); }
+  input[type="text"], input[type="number"], select, textarea { width:100%; border:1px solid var(--line); border-radius:9px; padding:8px 11px; background:var(--panel-2); outline:none; }
+  textarea { min-height:84px; resize:vertical; }
+  .rowline { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+  .rowline:first-of-type { border-top:none; }
+  .rowline .grow { flex:1; }
+  .switch { position:relative; width:44px; height:26px; flex:0 0 auto; }
+  .switch input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+  .switch .track { position:absolute; inset:0; background:#c8c8ce; border-radius:999px; transition:.16s; }
+  .switch .track::after { content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:.16s; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + .track { background:var(--ok); }
+  .switch input:checked + .track::after { transform:translateX(18px); }
+  .switch input:disabled + .track { opacity:.5; cursor:not-allowed; }
+  .drawer { position:fixed; top:0; right:0; width:min(480px,92vw); height:100vh; background:var(--panel); border-left:1px solid var(--line); box-shadow:-12px 0 32px rgba(0,0,0,.14); transform:translateX(102%); transition:transform .2s; display:flex; flex-direction:column; z-index:20; }
+  .drawer[data-open="true"] { transform:none; }
+  .drawer header { padding:15px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .drawer .body { padding:16px 18px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
+  .drawer footer { margin-top:auto; padding:13px 18px; border-top:1px solid var(--line); display:flex; gap:9px; }
+  .mono { font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted); }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:30; padding:24px; }
+  .modal[data-open="true"] { display:flex; }
+  .modal .box { background:var(--panel); border-radius:14px; border:1px solid var(--line); width:min(760px,96vw); max-height:88vh; display:flex; flex-direction:column; }
+  .modal .box header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .modal pre { margin:0; padding:16px 18px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; line-height:1.65; }
+  .toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px); background:#1c1c1f; color:#fff; padding:9px 17px; border-radius:999px; font-size:13px; opacity:0; transition:.2s; pointer-events:none; z-index:40; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="brand" data-i18n="app.brand">Memory</div>
+    <button data-view="hub" aria-current="true">🧠 <span class="grow" data-i18n="nav.hub">Memory Hub</span><span class="badge" id="count-all">0</span></button>
+    <button data-view="inbox">📥 <span class="grow" data-i18n="nav.inbox">Inbox</span><span class="badge warn" id="count-inbox">0</span></button>
+    <button data-view="dashboard">📊 <span class="grow" data-i18n="nav.dashboard">Token Dashboard</span></button>
+    <button data-view="search">🔍 <span class="grow" data-i18n="nav.search">Search</span></button>
+    <button data-view="settings">⚙️ <span class="grow" data-i18n="nav.settings">Settings</span></button>
+    <div class="navfoot">
+      <div id="foot-state">—</div>
+      <div id="foot-file" class="mono"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="top">
+      <input type="search" id="q" data-i18n-ph="top.search" placeholder="Search content, tags or project" />
+      <button class="btn" id="btn-preview" data-i18n="top.preview">👁 Preview prompt</button>
+      <button class="btn primary" id="btn-add" data-i18n="top.add">＋ New memory</button>
+    </div>
+
+    <section id="view-hub" class="stack">
+      <div class="chips" id="chips"></div>
+      <div class="list" id="list-hub"></div>
+      <div class="empty hidden" id="empty-hub" data-i18n="hub.empty">No memories yet.</div>
+    </section>
+
+    <section id="view-inbox" class="stack hidden">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <h2 style="margin:0;flex:1" data-i18n="inbox.title">📥 Inbox</h2>
+          <button class="btn" id="inbox-accept-all" data-i18n="inbox.acceptAll">Accept all</button>
+          <button class="btn danger" id="inbox-reject-all" data-i18n="inbox.rejectAll">Reject all</button>
+        </div>
+        <div class="notice info" data-i18n="inbox.notice"></div>
+      </div>
+      <div class="list" id="list-inbox"></div>
+      <div class="empty hidden" id="empty-inbox" data-i18n="inbox.empty">Nothing to review.</div>
+    </section>
+
+    <section id="view-dashboard" class="stack hidden">
+      <div class="card">
+        <h2 data-i18n="dash.title">📊 Token &amp; context usage</h2>
+        <div class="bar" id="bar"></div>
+        <div class="legend" id="legend"></div>
+        <div id="dash-notice" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h3 data-i18n="dash.overview">Library overview</h3>
+        <div class="kpis" id="kpis"></div>
+      </div>
+      <div class="card">
+        <h3 data-i18n="dash.injectedTitle">Injected this turn</h3>
+        <div class="kpis" id="kpis-injected"></div>
+      </div>
+    </section>
+
+    <section id="view-search" class="stack hidden">
+      <div class="card"><h2 data-i18n="search.title">🔍 Search</h2><div class="notice info" id="search-hint"></div></div>
+      <div class="list" id="list-search"></div>
+      <div class="empty hidden" id="empty-search" data-i18n="search.empty">No matching memories.</div>
+    </section>
+
+    <section id="view-settings" class="stack hidden">
+      <div class="card">
+        <h2 data-i18n="settings.title">⚙️ Extraction rules &amp; settings</h2>
+        <div class="rowline"><div class="grow"><div data-i18n="settings.enabled">Master switch</div><div class="meta" data-i18n="settings.enabledHint"></div></div><label class="switch"><input type="checkbox" id="set-enabled"><span class="track"></span></label></div>
+        <div class="rowline"><div class="grow"><div data-i18n="settings.autoExtract">Auto extraction</div><div class="meta" data-i18n="settings.autoExtractHint"></div></div><label class="switch"><input type="checkbox" id="set-autoextract"><span class="track"></span></label></div>
+        <div class="rowline"><div class="grow"><div data-i18n="settings.inboxRow">Inbox review</div><div class="meta" data-i18n="settings.inboxHint"></div></div><span class="badge" id="set-inbox-flag">—</span></div>
+        <div class="rowline"><div class="grow"><div data-i18n="settings.showIndex">Include numbered index</div><div class="meta" data-i18n="settings.showIndexHint"></div></div><label class="switch"><input type="checkbox" id="set-showindex"><span class="track"></span></label></div>
+        <div class="rowline"><div class="grow"><div data-i18n="settings.judge">Who decides what to remember</div><div class="meta" data-i18n="settings.judgeHint"></div></div><select id="set-judge" style="width:auto"><option value="model" data-i18n="settings.judgeModel"></option><option value="rules" data-i18n="settings.judgeRules"></option><option value="off" data-i18n="settings.judgeOff"></option></select></div>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="settings.params">Injection parameters (stored in the local database)</h3>
+        <div class="fields">
+          <label class="field"><span data-i18n="settings.mode">Injection mode</span>
+            <select id="set-mode"><option value="relevant" data-i18n="settings.modeRelevant"></option><option value="all" data-i18n="settings.modeAll"></option></select>
+          </label>
+          <label class="field"><span>maxBytes</span><input type="number" id="set-maxbytes" min="256" step="256"></label>
+          <label class="field"><span>minScore</span><input type="number" id="set-minscore" min="1" step="1"></label>
+          <label class="field"><span>maxRelevant</span><input type="number" id="set-maxrelevant" min="1" step="1"></label>
+          <label class="field"><span>indexChars</span><input type="number" id="set-indexchars" min="4" step="1"></label>
+          <label class="field"><span data-i18n="settings.project">Current project (currentProject)</span><input type="text" id="set-project"></label>
+        </div>
+        <div style="display:flex;gap:9px;margin-top:14px">
+          <button class="btn primary" id="btn-save-settings" data-i18n="settings.save">Save</button>
+          <button class="btn ghost" id="btn-reset-settings" data-i18n="settings.reset">Reset to defaults</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="settings.language">Language</h3>
+        <div class="meta" data-i18n="settings.languageHint"></div>
+        <div class="fields" style="margin-top:10px">
+          <label class="field"><span data-i18n="settings.language">Language</span>
+            <select id="set-lang">
+              <option value="en">English</option>
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁體中文</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 data-i18n="settings.data">Data &amp; privacy</h3>
+        <div class="meta mono" id="set-file"></div>
+        <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn" id="btn-export" data-i18n="settings.export">Export JSON</button>
+        </div>
+        <div class="notice info" style="margin-top:12px" data-i18n="settings.privacy"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<aside class="drawer" id="drawer">
+  <header>
+    <strong id="drawer-title" data-i18n="drawer.title">Memory workbench</strong>
+    <span class="mono" id="drawer-id"></span>
+    <span style="flex:1"></span>
+    <button class="btn ghost" id="drawer-close" data-i18n="drawer.close">Close</button>
+  </header>
+  <div class="body">
+    <label class="field"><span data-i18n="drawer.content">Content</span><textarea id="dw-content"></textarea></label>
+    <div class="fields">
+      <label class="field"><span data-i18n="drawer.category">Category</span>
+        <select id="dw-category">
+          <option value="global" data-i18n="cat.global"></option>
+          <option value="project" data-i18n="cat.project"></option>
+          <option value="persona" data-i18n="cat.persona"></option>
+          <option value="ephemeral" data-i18n="cat.ephemeral"></option>
+          <option value="general" data-i18n="cat.general"></option>
+        </select>
+      </label>
+      <label class="field"><span data-i18n="drawer.priority">Priority</span>
+        <select id="dw-priority">
+          <option value="high" data-i18n="prio.high"></option>
+          <option value="medium" data-i18n="prio.medium"></option>
+          <option value="low" data-i18n="prio.low"></option>
+        </select>
+      </label>
+      <label class="field"><span data-i18n="drawer.project">Project (project entries only)</span><input type="text" id="dw-project"></label>
+      <label class="field"><span data-i18n="drawer.ttl">TTL</span>
+        <select id="dw-ttl">
+          <option value="" data-i18n="ttl.permanent"></option>
+          <option value="1" data-i18n="ttl.d1"></option>
+          <option value="7" data-i18n="ttl.d7"></option>
+          <option value="30" data-i18n="ttl.d30"></option>
+          <option value="90" data-i18n="ttl.d90"></option>
+          <option value="clear" data-i18n="ttl.clear"></option>
+        </select>
+      </label>
+      <label class="field" style="grid-column:1/-1"><span data-i18n="drawer.tags">Tags (comma separated)</span><input type="text" id="dw-tags"></label>
+    </div>
+    <div class="meta" id="dw-facts"></div>
+    <div class="notice info hidden" id="dw-pending" data-i18n="drawer.pending"></div>
+  </div>
+  <footer>
+    <button class="btn primary" id="dw-save" data-i18n="drawer.save">Save</button>
+    <button class="btn" id="dw-accept" data-i18n="drawer.accept">Accept</button>
+    <button class="btn danger" id="dw-delete" data-i18n="drawer.delete">Delete</button>
+    <span style="flex:1"></span>
+    <button class="btn ghost" id="dw-copy" data-i18n="drawer.copy">Copy</button>
+  </footer>
+</aside>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <header>
+      <strong data-i18n="modal.title">👁 Prompt injected into a new chat</strong>
+      <span class="mono" id="modal-stat"></span>
+      <span style="flex:1"></span>
+      <button class="btn ghost" id="modal-close" data-i18n="modal.close">Close</button>
+    </header>
+    <pre id="modal-text"></pre>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// English is the root language: keys map to { en, zh-CN, zh-TW }.
+const LANGS = ["en", "zh-CN", "zh-TW"]
+const DICT = {
+  "app.brand": { en: "Memory", "zh-CN": "记忆", "zh-TW": "記憶" },
+  "app.title": { en: "Memory · DSH", "zh-CN": "记忆 · DSH", "zh-TW": "記憶 · DSH" },
+  "nav.hub": { en: "Memory Hub", "zh-CN": "核心记忆库", "zh-TW": "核心記憶庫" },
+  "nav.inbox": { en: "Inbox", "zh-CN": "记忆收件箱", "zh-TW": "記憶收件匣" },
+  "nav.dashboard": { en: "Token Dashboard", "zh-CN": "Token 仪表盘", "zh-TW": "Token 儀表板" },
+  "nav.search": { en: "Search", "zh-CN": "语义检索", "zh-TW": "語意檢索" },
+  "nav.settings": { en: "Settings", "zh-CN": "提取规则与设置", "zh-TW": "擷取規則與設定" },
+  "top.search": { en: "Search content, tags or project", "zh-CN": "搜索记忆内容 / 标签 / 项目", "zh-TW": "搜尋記憶內容 / 標籤 / 專案" },
+  "top.preview": { en: "👁 Preview prompt", "zh-CN": "👁 Prompt 预览", "zh-TW": "👁 Prompt 預覽" },
+  "top.add": { en: "＋ New memory", "zh-CN": "＋ 新增记忆", "zh-TW": "＋ 新增記憶" },
+  "hub.empty": {
+    en: "No memories yet. Click “＋ New memory”, or just tell the agent “remember this…”. ",
+    "zh-CN": "还没有记忆。点右上角「＋ 新增记忆」，或直接跟 agent 说「记住……」。",
+    "zh-TW": "還沒有記憶。點右上角「＋ 新增記憶」，或直接跟 agent 說「記住……」。",
+  },
+  "inbox.title": { en: "📥 Inbox", "zh-CN": "📥 记忆收件箱", "zh-TW": "📥 記憶收件匣" },
+  "inbox.acceptAll": { en: "Accept all", "zh-CN": "全部接受", "zh-TW": "全部接受" },
+  "inbox.rejectAll": { en: "Reject all", "zh-CN": "全部拒绝", "zh-TW": "全部拒絕" },
+  "inbox.notice": {
+    en: "Auto-extracted memories land here first. Only after approval do they enter the long-term store and get injected — this keeps dirty memories out of your prompt.",
+    "zh-CN": "AI 自动提取的记忆先进这里，审批后才进入长期库、才会注入 prompt —— 防止脏记忆污染上下文。",
+    "zh-TW": "AI 自動擷取的記憶先進這裡，審核後才進入長期庫、才會注入 prompt —— 防止髒記憶污染上下文。",
+  },
+  "inbox.empty": { en: "Inbox is empty.", "zh-CN": "收件箱是空的。", "zh-TW": "收件匣是空的。" },
+  "dash.title": { en: "📊 Token & context usage", "zh-CN": "📊 Token 与上下文占用", "zh-TW": "📊 Token 與上下文佔用" },
+  "dash.overview": { en: "Library overview", "zh-CN": "记忆库概况", "zh-TW": "記憶庫概況" },
+  "dash.injectedTitle": { en: "Injected this turn", "zh-CN": "本轮注入明细", "zh-TW": "本輪注入明細" },
+  "dash.seg.header": { en: "Header", "zh-CN": "基础指令/表头", "zh-TW": "基礎指令/表頭" },
+  "dash.seg.always": { en: "Always-on", "zh-CN": "全局常驻", "zh-TW": "全域常駐" },
+  "dash.seg.ephemeral": { en: "This session", "zh-CN": "当前会话", "zh-TW": "目前工作階段" },
+  "dash.seg.matched": { en: "Topic match", "zh-CN": "本轮相关", "zh-TW": "本輪相關" },
+  "dash.seg.index": { en: "Index", "zh-CN": "索引", "zh-TW": "索引" },
+  "dash.noticeFull": {
+    en: "⚠️ Always-on memories fill {p}% of the budget. They cost tokens every turn — trim globals or lower maxBytes.",
+    "zh-CN": "⚠️ 常驻记忆占满预算（{p}%）。每轮对话都会消耗这些 token，建议精简全局条目或调低 maxBytes。",
+    "zh-TW": "⚠️ 常駐記憶佔滿預算（{p}%）。每輪對話都會消耗這些 token，建議精簡全域條目或調低 maxBytes。",
+  },
+  "dash.noticeAlways": {
+    en: "Always-on + session memories use {p}% of the budget. Consider moving project facts to “Workspace/Project” so they activate only with that project.",
+    "zh-CN": "常驻 + 临时记忆占了预算的 {p}%，建议把项目类记忆改成「工作区/项目」，只在相关项目里激活。",
+    "zh-TW": "常駐 + 臨時記憶佔了預算的 {p}%，建議把專案類記憶改成「工作區/專案」，只在相關專案裡啟用。",
+  },
+  "dash.noticeInfo": {
+    en: "This turn injects ~{tokens} tokens / {bytes} bytes (budget {budget}).",
+    "zh-CN": "本轮注入约 {tokens} tokens / {bytes} 字节（预算 {budget}）。",
+    "zh-TW": "本輪注入約 {tokens} tokens / {bytes} 位元組（預算 {budget}）。",
+  },
+  "kpi.total": { en: "Total memories", "zh-CN": "记忆总数", "zh-TW": "記憶總數" },
+  "kpi.global": { en: "Global", "zh-CN": "全局/常驻", "zh-TW": "全域/常駐" },
+  "kpi.project": { en: "Project", "zh-CN": "项目", "zh-TW": "專案" },
+  "kpi.persona": { en: "Persona", "zh-CN": "画像", "zh-TW": "畫像" },
+  "kpi.ephemeral": { en: "Ephemeral", "zh-CN": "临时", "zh-TW": "臨時" },
+  "kpi.pending": { en: "To review", "zh-CN": "待审批", "zh-TW": "待審核" },
+  "kpi.expired": { en: "Expired", "zh-CN": "已过期", "zh-TW": "已過期" },
+  "kpi.tokens": { en: "Est. tokens", "zh-CN": "估算 tokens", "zh-TW": "估算 tokens" },
+  "inj.always": { en: "Always-on", "zh-CN": "全局常驻", "zh-TW": "全域常駐" },
+  "inj.project": { en: "This project", "zh-CN": "本项目", "zh-TW": "本專案" },
+  "inj.ephemeral": { en: "This session", "zh-CN": "当前会话", "zh-TW": "目前工作階段" },
+  "inj.matched": { en: "Topic match", "zh-CN": "话题相关", "zh-TW": "話題相關" },
+  "inj.index": { en: "Index only", "zh-CN": "仅索引", "zh-TW": "僅索引" },
+  "search.title": { en: "🔍 Search", "zh-CN": "🔍 语义检索", "zh-TW": "🔍 語意檢索" },
+  "search.hint": {
+    en: "Type a keyword above — e.g. “deploy”, “config”, “docs”.",
+    "zh-CN": "在上方搜索框输入关键词，比如「部署」「配置」「文档」。",
+    "zh-TW": "在上方搜尋框輸入關鍵字，例如「部署」「設定」「文件」。",
+  },
+  "search.hintQuery": {
+    en: "Keyword: {q} (matches content / tags / project; it also drives injection)",
+    "zh-CN": "关键词：{q}（按内容 / 标签 / 项目匹配；同一关键词也会影响注入选条）",
+    "zh-TW": "關鍵字：{q}（依內容 / 標籤 / 專案比對；同一關鍵字也會影響注入選條）",
+  },
+  "search.empty": { en: "No matching memories.", "zh-CN": "没有匹配的记忆。", "zh-TW": "沒有符合的記憶。" },
+  "settings.title": { en: "⚙️ Extraction rules & settings", "zh-CN": "⚙️ 提取规则与设置", "zh-TW": "⚙️ 擷取規則與設定" },
+  "settings.enabled": { en: "Master switch", "zh-CN": "记忆总开关", "zh-TW": "記憶總開關" },
+  "settings.enabledHint": {
+    en: "When off: no injection, no extraction, add fails",
+    "zh-CN": "关掉后不注入、不自动提取、add 报错",
+    "zh-TW": "關閉後不注入、不自動擷取、add 會報錯",
+  },
+  "settings.autoExtract": { en: "Auto extraction", "zh-CN": "自动提取", "zh-TW": "自動擷取" },
+  "settings.autoExtractHint": {
+    en: "Extract persona facts from chats",
+    "zh-CN": "从对话里提取用户画像",
+    "zh-TW": "從對話裡擷取使用者畫像",
+  },
+  "settings.inboxRow": { en: "Inbox review", "zh-CN": "收件箱审批", "zh-TW": "收件匣審核" },
+  "settings.inboxHint": {
+    en: "Controlled by inbox in cordis.patch.yml",
+    "zh-CN": "由 cordis.patch.yml 的 inbox 控制",
+    "zh-TW": "由 cordis.patch.yml 的 inbox 控制",
+  },
+  "settings.inboxOn": { en: "On (from YAML)", "zh-CN": "已开启（YAML 控制）", "zh-TW": "已開啟（YAML 控制）" },
+  "settings.inboxOff": { en: "Off (from YAML)", "zh-CN": "已关闭（YAML 控制）", "zh-TW": "已關閉（YAML 控制）" },
+  "settings.showIndex": { en: "Include numbered index", "zh-CN": "附带编号索引", "zh-TW": "附帶編號索引" },
+  "settings.showIndexHint": {
+    en: "Unselected entries appear as short titles; the model can read them in full",
+    "zh-CN": "未选中的条目只给开头，模型可 read 取全文",
+    "zh-TW": "未選中的條目只給開頭，模型可 read 取全文",
+  },
+  "settings.params": {
+    en: "Injection parameters (stored in the local database)",
+    "zh-CN": "注入参数（保存在本地库，不用改 YAML）",
+    "zh-TW": "注入參數（儲存在本機資料庫，不用改 YAML）",
+  },
+  "settings.judge": { en: "Who decides what to remember", "zh-CN": "谁来判定值得记什么", "zh-TW": "誰來判定值得記什麼" },
+  "settings.judgeHint": { en: "model = agent judges by itself (recommended); rules = regex fallback; off = never auto-record", "zh-CN": "model = 由模型自己判断（推荐）；rules = 正则兜底；off = 完全不自动记", "zh-TW": "model = 由模型自行判斷（推薦）；rules = 正規表示式備援；off = 完全不自動記" },
+  "settings.judgeModel": { en: "model · agent judges", "zh-CN": "model · 模型自己判断", "zh-TW": "model · 模型自行判斷" },
+  "settings.judgeRules": { en: "rules · regex fallback", "zh-CN": "rules · 正则兜底", "zh-TW": "rules · 正規表示式備援" },
+  "settings.judgeOff": { en: "off · never auto-record", "zh-CN": "off · 不自动记", "zh-TW": "off · 不自動記" },  "settings.mode": { en: "Injection mode", "zh-CN": "注入模式", "zh-TW": "注入模式" },
+  "settings.modeRelevant": { en: "relevant · keyword-selected", "zh-CN": "relevant · 按关键词挑", "zh-TW": "relevant · 依關鍵字挑" },
+  "settings.modeAll": { en: "all · inject everything", "zh-CN": "all · 全量注入", "zh-TW": "all · 全量注入" },
+  "settings.project": { en: "Current project (currentProject)", "zh-CN": "当前项目 currentProject", "zh-TW": "目前專案 currentProject" },
+  "settings.save": { en: "Save", "zh-CN": "保存", "zh-TW": "儲存" },
+  "settings.reset": { en: "Reset to defaults", "zh-CN": "恢复默认", "zh-TW": "回復預設" },
+  "settings.language": { en: "Language", "zh-CN": "界面语言", "zh-TW": "介面語言" },
+  "settings.languageHint": {
+    en: "Chosen during installation; you can switch any time.",
+    "zh-CN": "首次安装时选择，之后可随时切换。",
+    "zh-TW": "首次安裝時選擇，之後可隨時切換。",
+  },
+  "settings.data": { en: "Data & privacy", "zh-CN": "数据与隐私", "zh-TW": "資料與隱私" },
+  "settings.export": { en: "Export JSON", "zh-CN": "导出 JSON", "zh-TW": "匯出 JSON" },
+  "settings.privacy": {
+    en: "Everything lives in a local SQLite database (JSON file as fallback) — no network, no upload, no telemetry. Memories do enter the model context, so never store secrets.",
+    "zh-CN": "全部数据只存在本地 SQLite 库（无 node:sqlite 时回退 JSON 文件），不联网、不上传、无遥测。记忆会进入模型上下文，敏感信息请勿记录。",
+    "zh-TW": "全部資料只存在本機 SQLite 資料庫（無 node:sqlite 時回退 JSON 檔案），不連網、不上傳、無遙測。記憶會進入模型上下文，敏感資訊請勿記錄。",
+  },
+  "drawer.title": { en: "Memory workbench", "zh-CN": "记忆工作台", "zh-TW": "記憶工作台" },
+  "drawer.content": { en: "Content", "zh-CN": "内容", "zh-TW": "內容" },
+  "drawer.category": { en: "Category", "zh-CN": "分类", "zh-TW": "分類" },
+  "drawer.priority": { en: "Priority", "zh-CN": "优先级", "zh-TW": "優先順序" },
+  "drawer.project": { en: "Project (project entries only)", "zh-CN": "项目（仅项目类用）", "zh-TW": "專案（僅專案類用）" },
+  "drawer.ttl": { en: "TTL", "zh-CN": "时效 TTL", "zh-TW": "時效 TTL" },
+  "drawer.tags": { en: "Tags (comma separated)", "zh-CN": "标签（逗号分隔）", "zh-TW": "標籤（逗號分隔）" },
+  "drawer.save": { en: "Save", "zh-CN": "保存", "zh-TW": "儲存" },
+  "drawer.accept": { en: "Accept", "zh-CN": "接受", "zh-TW": "接受" },
+  "drawer.delete": { en: "Delete", "zh-CN": "删除", "zh-TW": "刪除" },
+  "drawer.copy": { en: "Copy", "zh-CN": "复制", "zh-TW": "複製" },
+  "drawer.close": { en: "Close", "zh-CN": "关闭", "zh-TW": "關閉" },
+  "drawer.edit": { en: "Edit", "zh-CN": "编辑", "zh-TW": "編輯" },
+  "drawer.pending": { en: "Waiting for review in the inbox.", "zh-CN": "这条在收件箱里待审批。", "zh-TW": "這條在收件匣裡待審核。" },
+  "cat.global": { en: "🌍 Global", "zh-CN": "🌍 全局/常驻", "zh-TW": "🌍 全域/常駐" },
+  "cat.project": { en: "📁 Workspace/Project", "zh-CN": "📁 工作区/项目", "zh-TW": "📁 工作區/專案" },
+  "cat.persona": { en: "👤 Persona", "zh-CN": "👤 用户画像", "zh-TW": "👤 使用者畫像" },
+  "cat.ephemeral": { en: "⏳ Ephemeral", "zh-CN": "⏳ 临时/易失", "zh-TW": "⏳ 臨時/易失" },
+  "cat.general": { en: "📝 General", "zh-CN": "📝 普通", "zh-TW": "📝 一般" },
+  "prio.high": { en: "High · must follow", "zh-CN": "高 · 强制遵守", "zh-TW": "高 · 強制遵守" },
+  "prio.medium": { en: "Medium · should follow", "zh-CN": "中 · 建议遵守", "zh-TW": "中 · 建議遵守" },
+  "prio.low": { en: "Low · reference only", "zh-CN": "低 · 仅供参考", "zh-TW": "低 · 僅供參考" },
+  "ttl.permanent": { en: "Never expires", "zh-CN": "永久有效", "zh-TW": "永久有效" },
+  "ttl.d1": { en: "Expires in 1 day", "zh-CN": "1 天后过期", "zh-TW": "1 天後過期" },
+  "ttl.d7": { en: "Expires in 7 days", "zh-CN": "7 天后过期", "zh-TW": "7 天後過期" },
+  "ttl.d30": { en: "Expires in 30 days", "zh-CN": "30 天后过期", "zh-TW": "30 天後過期" },
+  "ttl.d90": { en: "Expires in 90 days", "zh-CN": "90 天后过期", "zh-TW": "90 天後過期" },
+  "ttl.clear": { en: "Clear expiry", "zh-CN": "清除到期时间", "zh-TW": "清除到期時間" },
+  "status.pending": { en: "To review", "zh-CN": "待审批", "zh-TW": "待審核" },
+  "status.rejected": { en: "Rejected", "zh-CN": "已拒绝", "zh-TW": "已拒絕" },
+  "src.auto": { en: "auto", "zh-CN": "自动提取", "zh-TW": "自動擷取" },
+  "src.user": { en: "manual", "zh-CN": "手动添加", "zh-TW": "手動新增" },
+  "src.agent": { en: "by agent", "zh-CN": "agent 记的", "zh-TW": "agent 記的" },
+  "meta.expires": { en: "expires {d}", "zh-CN": "到期 {d}", "zh-TW": "到期 {d}" },
+  "meta.created": { en: "created {d}", "zh-CN": "创建 {d}", "zh-TW": "建立 {d}" },
+  "meta.updated": { en: "updated {d}", "zh-CN": "更新 {d}", "zh-TW": "更新 {d}" },
+  "meta.permanent": { en: "no expiry", "zh-CN": "永久有效", "zh-TW": "永久有效" },
+  "meta.source": { en: "source", "zh-CN": "来源", "zh-TW": "來源" },
+  "meta.status": { en: "status", "zh-CN": "状态", "zh-TW": "狀態" },
+  "modal.title": { en: "👁 Prompt injected into a new chat", "zh-CN": "👁 现在开新对话会注入的 Prompt", "zh-TW": "👁 現在開新對話會注入的 Prompt" },
+  "modal.close": { en: "Close", "zh-CN": "关闭", "zh-TW": "關閉" },
+  "confirm.second": {
+    en: "Confirm again: type “{w}” to proceed (cancel aborts)",
+    "zh-CN": "二次确认：输入「{w}」后才会执行（取消 = 放弃）",
+    "zh-TW": "二次確認：輸入「{w}」後才會執行（取消 = 放棄）",
+  },
+  "confirm.deleteQ": { en: "Delete this memory?", "zh-CN": "删除这条记忆？", "zh-TW": "刪除這條記憶？" },
+  "confirm.deleteWord": { en: "DELETE", "zh-CN": "删除", "zh-TW": "刪除" },
+  "confirm.rejectQ": { en: "Reject this pending memory? It will be discarded.", "zh-CN": "拒绝这条待审记忆？会被丢弃。", "zh-TW": "拒絕這條待審記憶？會被丟棄。" },
+  "confirm.rejectWord": { en: "REJECT", "zh-CN": "拒绝", "zh-TW": "拒絕" },
+  "confirm.rejectAllQ": { en: "Reject every memory in the inbox?", "zh-CN": "拒绝收件箱里的全部记忆？", "zh-TW": "拒絕收件匣裡的全部記憶？" },
+  "toast.saved": { en: "Saved", "zh-CN": "已保存", "zh-TW": "已儲存" },
+  "toast.added": { en: "Added", "zh-CN": "已添加", "zh-TW": "已新增" },
+  "toast.deleted": { en: "Deleted", "zh-CN": "已删除", "zh-TW": "已刪除" },
+  "toast.accepted": { en: "Accepted", "zh-CN": "已接受", "zh-TW": "已接受" },
+  "toast.rejected": { en: "Rejected", "zh-CN": "已拒绝", "zh-TW": "已拒絕" },
+  "toast.allAccepted": { en: "All accepted", "zh-CN": "已全部接受", "zh-TW": "已全部接受" },
+  "toast.allRejected": { en: "All rejected", "zh-CN": "已全部拒绝", "zh-TW": "已全部拒絕" },
+  "toast.copied": { en: "Copied", "zh-CN": "已复制", "zh-TW": "已複製" },
+  "toast.copyFail": { en: "Copy failed — select the text manually", "zh-CN": "复制失败，请手动选择文本", "zh-TW": "複製失敗，請手動選取文字" },
+  "toast.settingsSaved": { en: "Settings saved", "zh-CN": "设置已保存", "zh-TW": "設定已儲存" },
+  "toast.reset": { en: "Reset to defaults", "zh-CN": "已恢复默认", "zh-TW": "已回復預設" },
+  "toast.exported": { en: "Exported", "zh-CN": "已导出", "zh-TW": "已匯出" },
+  "toast.readFail": { en: "Load failed: {e}", "zh-CN": "读取失败：{e}", "zh-TW": "讀取失敗：{e}" },
+  "toast.pinned": { en: "Pinned as always-on", "zh-CN": "已设为常驻", "zh-TW": "已設為常駐" },
+  "toast.unpinned": { en: "Removed from always-on", "zh-CN": "已取消常驻", "zh-TW": "已取消常駐" },
+  "btn.pin": { en: "Pin", "zh-CN": "设为常驻", "zh-TW": "設為常駐" },
+  "btn.unpin": { en: "Unpin", "zh-CN": "取消常驻", "zh-TW": "取消常駐" },
+  "btn.delete": { en: "Delete", "zh-CN": "删除", "zh-TW": "刪除" },
+  "prompt.add": {
+    en: "New memory (general by default; edit category later)",
+    "zh-CN": "新增记忆内容（默认普通记忆，之后可在工作台改分类/优先级）",
+    "zh-TW": "新增記憶內容（預設一般記憶，之後可在工作台改分類/優先順序）",
+  },
+  "foot.on": { en: "Memory on · auto extraction on", "zh-CN": "记忆开启 · 自动提取开启", "zh-TW": "記憶開啟 · 自動擷取開啟" },
+  "foot.onNoExtract": { en: "Memory on · auto extraction off", "zh-CN": "记忆开启 · 自动提取关闭", "zh-TW": "記憶開啟 · 自動擷取關閉" },
+  "foot.off": { en: "Memory off", "zh-CN": "记忆已关闭", "zh-TW": "記憶已關閉" },
+  "chips.all": { en: "All", "zh-CN": "全部", "zh-TW": "全部" },
+  "chips.inbox": { en: "📥 Inbox", "zh-CN": "📥 收件箱", "zh-TW": "📥 收件匣" },
+  "chips.expired": { en: "⏰ Expired", "zh-CN": "⏰ 已过期", "zh-TW": "⏰ 已過期" },
+}
+
+let LANG = "en"
+function t(key, vars) {
+  const row = DICT[key]
+  let text = row ? (row[LANG] || row.en) : key
+  if (vars) for (const name of Object.keys(vars)) text = text.split("{" + name + "}").join(String(vars[name]))
+  return text
+}
+function applyStaticText() {
+  document.title = t("app.title")
+  document.documentElement.lang = LANG
+  for (const node of document.querySelectorAll("[data-i18n]")) {
+    const key = node.getAttribute("data-i18n")
+    if (key && DICT[key]) node.textContent = t(key)
+  }
+  for (const node of document.querySelectorAll("[data-i18n-ph]")) node.setAttribute("placeholder", t(node.getAttribute("data-i18n-ph")))
+}
+
+const CAT_ICON = { global: "🌍", project: "📁", persona: "👤", ephemeral: "⏳", general: "📝" }
+const $ = (id) => document.getElementById(id)
+
+let state = null
+let view = "hub"
+let filter = "all"
+let query = ""
+let drawerId = null
+let busy = false
+
+function toast(message) {
+  const el = $("toast")
+  el.textContent = message
+  el.classList.add("show")
+  clearTimeout(toast.timer)
+  toast.timer = setTimeout(() => el.classList.remove("show"), 1900)
+}
+
+const fmtDate = (iso) => (iso ? String(iso).slice(0, 10) : "")
+
+/** Two-step confirmation: a click, then typing the word. Every destructive action uses it. */
+function confirmTwice(question, word) {
+  if (!confirm(question)) return false
+  const answer = prompt(t("confirm.second", { w: word }), "")
+  return answer !== null && answer.trim() === word
+}
+
+async function api(path, body) {
+  const options = body === undefined ? undefined : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
+  const response = await fetch(path, options)
+  const value = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(value.error || "HTTP " + response.status)
+  return value
+}
+
+async function load() {
+  try {
+    const params = new URLSearchParams()
+    if (query.trim().length > 0) params.set("q", query.trim())
+    state = await api("/api/state" + (params.toString() ? "?" + params : ""))
+    const next = LANGS.includes(state.lang) ? state.lang : LANG
+    if (next !== LANG) { LANG = next; applyStaticText() }
+    render()
+  } catch (error) {
+    toast(t("toast.readFail", { e: error.message }))
+  }
+}
+
+async function mutate(fn, successKey) {
+  if (busy) return
+  busy = true
+  try {
+    const result = await fn()
+    if (result && result.entries) state = result
+    else await load()
+    if (successKey) toast(t(successKey))
+  } catch (error) {
+    toast(error.message)
+  } finally {
+    busy = false
+    render()
+  }
+}
+
+function render() {
+  if (!state) return
+  const entries = state.entries
+  const pending = entries.filter((entry) => entry.status === "pending")
+  $("count-all").textContent = entries.length
+  $("count-inbox").textContent = pending.length
+  $("foot-state").textContent = state.effective.enabled
+    ? (state.effective.autoExtract ? t("foot.on") : t("foot.onNoExtract"))
+    : t("foot.off")
+  $("foot-file").textContent = state.dataFile
+  $("set-file").textContent = state.dataFile
+
+  for (const button of document.querySelectorAll(".nav button")) {
+    button.setAttribute("aria-current", String(button.dataset.view === view))
+  }
+  for (const section of ["hub", "inbox", "dashboard", "search", "settings"]) {
+    $("view-" + section).classList.toggle("hidden", view !== section)
+  }
+  renderChips()
+  renderList($("list-hub"), $("empty-hub"), visibleEntries())
+  renderInbox(pending)
+  renderDashboard()
+  renderSearch()
+  renderSettings()
+  if (drawerId && !entries.some((entry) => entry.id === drawerId)) closeDrawer()
+}
+
+function visibleEntries() {
+  let list = state.entries
+  if (filter === "inbox") list = list.filter((entry) => entry.status === "pending")
+  else if (filter === "expired") list = list.filter((entry) => entry.expiresAt && Date.parse(entry.expiresAt) <= Date.now())
+  else if (filter !== "all") list = list.filter((entry) => entry.category === filter && entry.status !== "pending")
+  const needle = query.trim().toLowerCase()
+  if (needle.length > 0) list = list.filter((entry) => [entry.content, entry.project, entry.tags.join(" ")].join(" ").toLowerCase().includes(needle))
+  return list
+}
+
+function renderChips() {
+  const counts = state.dashboard.counts
+  const chips = [
+    ["all", t("chips.all"), state.entries.length],
+    ["global", t("cat.global"), counts.global],
+    ["project", t("cat.project"), counts.project],
+    ["persona", t("cat.persona"), counts.persona],
+    ["ephemeral", t("cat.ephemeral"), counts.ephemeral],
+    ["general", t("cat.general"), counts.general],
+    ["inbox", t("chips.inbox"), state.dashboard.pending],
+    ["expired", t("chips.expired"), state.dashboard.expired],
+  ]
+  $("chips").innerHTML = ""
+  for (const [key, label, count] of chips) {
+    const button = document.createElement("button")
+    button.className = "chip"
+    button.type = "button"
+    button.setAttribute("aria-pressed", String(filter === key))
+    button.textContent = label + " " + (count ?? 0)
+    button.onclick = () => { filter = key; render() }
+    $("chips").append(button)
+  }
+}
+
+function entryCard(entry, options) {
+  const inbox = options && options.inbox
+  const li = document.createElement("div")
+  li.className = "item"
+  const icon = document.createElement("div")
+  icon.className = "icon"
+  icon.textContent = CAT_ICON[entry.category] || CAT_ICON.general
+
+  const body = document.createElement("div")
+  body.className = "body"
+  body.onclick = () => openDrawer(entry.id)
+  const content = document.createElement("div")
+  content.className = "content"
+  content.textContent = entry.content
+  const info = document.createElement("div")
+  info.className = "meta"
+  const bits = []
+  if (entry.number) bits.push("#" + entry.number)
+  bits.push(t("cat." + (entry.category || "general")))
+  if (entry.priority !== "medium") bits.push(t("prio." + entry.priority).split(" · ")[0])
+  if (entry.project) bits.push("📁 " + entry.project)
+  if (entry.status === "pending") bits.push(t("status.pending"))
+  if (entry.status === "rejected") bits.push(t("status.rejected"))
+  if (entry.expiresAt) bits.push(t("meta.expires", { d: fmtDate(entry.expiresAt) }))
+  bits.push(t("src." + (entry.source || "agent")))
+  bits.push(fmtDate(entry.createdAt))
+  for (const bit of bits) {
+    const span = document.createElement("span")
+    span.textContent = bit
+    info.append(span)
+  }
+  for (const tag of entry.tags) {
+    const span = document.createElement("span")
+    span.className = "tag"
+    span.textContent = tag
+    info.append(span)
+  }
+  body.append(content, info)
+
+  const acts = document.createElement("div")
+  acts.className = "acts"
+  if (inbox) {
+    const accept = document.createElement("button")
+    accept.textContent = t("drawer.accept")
+    accept.onclick = () => mutate(() => api("/api/inbox", { id: entry.id, action: "accept" }), "toast.accepted")
+    const edit = document.createElement("button")
+    edit.textContent = t("drawer.edit")
+    edit.onclick = () => openDrawer(entry.id)
+    const reject = document.createElement("button")
+    reject.textContent = t("drawer.delete")
+    reject.onclick = () => {
+      if (!confirmTwice(t("confirm.rejectQ"), t("confirm.rejectWord"))) return
+      mutate(() => api("/api/inbox", { id: entry.id, action: "reject" }), "toast.rejected")
+    }
+    acts.append(accept, edit, reject)
+  } else {
+    const pin = document.createElement("button")
+    pin.textContent = entry.category === "global" ? t("btn.unpin") : t("btn.pin")
+    pin.onclick = () => mutate(
+      () => api("/api/entry/update", { id: entry.id, category: entry.category === "global" ? "general" : "global" }),
+      entry.category === "global" ? "toast.unpinned" : "toast.pinned",
+    )
+    const del = document.createElement("button")
+    del.textContent = t("btn.delete")
+    del.onclick = () => {
+      if (!confirmTwice(t("confirm.deleteQ"), t("confirm.deleteWord"))) return
+      mutate(() => api("/api/entry/delete", { id: entry.id, confirm: true }), "toast.deleted")
+    }
+    acts.append(pin, del)
+  }
+  li.append(icon, body, acts)
+  return li
+}
+
+function renderList(container, emptyEl, list) {
+  container.innerHTML = ""
+  emptyEl.classList.toggle("hidden", list.length > 0)
+  for (const entry of list) container.append(entryCard(entry))
+}
+
+function renderInbox(pending) {
+  const list = $("list-inbox")
+  list.innerHTML = ""
+  $("empty-inbox").classList.toggle("hidden", pending.length > 0)
+  for (const entry of pending) list.append(entryCard(entry, { inbox: true }))
+}
+
+function renderDashboard() {
+  const dash = state.dashboard
+  const marks = state.preview.marks || {}
+  const segments = [
+    [t("dash.seg.header"), marks.header || 0, "#8b8b93"],
+    [t("dash.seg.always"), marks.always || 0, "#2f6bff"],
+    [t("dash.seg.ephemeral"), marks.ephemeral || 0, "#b45cff"],
+    [t("dash.seg.matched"), marks.matched || 0, "#12a150"],
+    [t("dash.seg.index"), marks.index || 0, "#c77700"],
+  ]
+  const total = segments.reduce((sum, item) => sum + item[1], 0) || 1
+  const budget = dash.maxBytes || 8192
+  $("bar").innerHTML = ""
+  for (const [label, value, color] of segments) {
+    if (value <= 0) continue
+    const span = document.createElement("span")
+    span.style.width = Math.max(1, (value / budget) * 100) + "%"
+    span.style.background = color
+    span.title = label + ": " + value + " B"
+    $("bar").append(span)
+  }
+  $("legend").innerHTML = ""
+  for (const [label, value, color] of segments) {
+    const item = document.createElement("span")
+    item.innerHTML = '<i style="background:' + color + '"></i>' + label + " " + value + " B"
+    $("legend").append(item)
+  }
+  const usedPct = Math.round((total / budget) * 100)
+  const alwaysBytes = (marks.always || 0) + (marks.ephemeral || 0)
+  const notice = $("dash-notice")
+  if (usedPct >= 90) notice.innerHTML = '<div class="notice warn">' + t("dash.noticeFull", { p: usedPct }) + "</div>"
+  else if (alwaysBytes / budget > 0.4) notice.innerHTML = '<div class="notice warn">' + t("dash.noticeAlways", { p: Math.round((alwaysBytes / budget) * 100) }) + "</div>"
+  else notice.innerHTML = '<div class="notice info">' + t("dash.noticeInfo", { tokens: state.preview.tokens || 0, bytes: total, budget }) + "</div>"
+
+  const kpis = [
+    [t("kpi.total"), dash.entries], [t("kpi.global"), dash.counts.global || 0], [t("kpi.project"), dash.counts.project || 0],
+    [t("kpi.persona"), dash.counts.persona || 0], [t("kpi.ephemeral"), dash.counts.ephemeral || 0],
+    [t("kpi.pending"), dash.pending], [t("kpi.expired"), dash.expired], [t("kpi.tokens"), dash.tokens],
+  ]
+  $("kpis").innerHTML = kpis.map(([label, value]) => '<div class="kpi"><b>' + value + "</b><span>" + label + "</span></div>").join("")
+  const injected = dash.injected
+  const kpisInjected = [
+    [t("inj.always"), injected.always], [t("inj.project"), injected.project], [t("inj.ephemeral"), injected.ephemeral],
+    [t("inj.matched"), injected.matched], [t("inj.index"), injected.index],
+  ]
+  $("kpis-injected").innerHTML = kpisInjected.map(([label, value]) => '<div class="kpi"><b>' + value + "</b><span>" + label + "</span></div>").join("")
+}
+
+function renderSearch() {
+  const needle = query.trim()
+  $("search-hint").textContent = needle.length === 0 ? t("search.hint") : t("search.hintQuery", { q: needle })
+  const list = needle.length === 0 ? [] : state.entries.filter((entry) =>
+    [entry.content, entry.project, entry.tags.join(" ")].join(" ").toLowerCase().includes(needle.toLowerCase()))
+  renderList($("list-search"), $("empty-search"), list)
+}
+
+function renderSettings() {
+  const { config, settings } = state
+  $("set-enabled").checked = settings.enabled !== false
+  $("set-enabled").disabled = !config.enabled
+  $("set-autoextract").checked = settings.autoExtract !== false
+  $("set-autoextract").disabled = settings.enabled === false
+  $("set-inbox-flag").textContent = config.inbox ? t("settings.inboxOn") : t("settings.inboxOff")
+  $("set-showindex").checked = config.showIndex !== false
+  $("set-mode").value = config.injectMode === "all" ? "all" : "relevant"
+  $("set-maxbytes").value = config.maxBytes
+  $("set-minscore").value = config.minScore
+  $("set-maxrelevant").value = config.maxRelevant
+  $("set-indexchars").value = config.indexChars
+  $("set-project").value = config.currentProject || ""
+  if ($("set-judge")) $("set-judge").value = (config.judgeMode === "rules" || config.judgeMode === "off") ? config.judgeMode : "model"
+  $("set-lang").value = LANG
+}
+
+function openDrawer(id) {
+  const entry = state.entries.find((item) => item.id === id)
+  if (!entry) return
+  drawerId = id
+  $("drawer-title").textContent = t("cat." + (entry.category || "general"))
+  $("drawer-id").textContent = "#" + entry.number + " · " + entry.id
+  $("dw-content").value = entry.content
+  $("dw-category").value = entry.category
+  $("dw-priority").value = entry.priority
+  $("dw-project").value = entry.project || ""
+  $("dw-tags").value = entry.tags.join(", ")
+  $("dw-ttl").value = ""
+  $("dw-facts").textContent = [
+    t("meta.source") + " " + t("src." + (entry.source || "agent")),
+    t("meta.status") + " " + entry.status,
+    t("meta.created", { d: fmtDate(entry.createdAt) }),
+    t("meta.updated", { d: fmtDate(entry.updatedAt) }),
+    entry.expiresAt ? t("meta.expires", { d: fmtDate(entry.expiresAt) }) : t("meta.permanent"),
+  ].join(" · ")
+  $("dw-pending").classList.toggle("hidden", entry.status !== "pending")
+  $("dw-accept").classList.toggle("hidden", entry.status !== "pending")
+  $("drawer").dataset.open = "true"
+}
+
+function closeDrawer() {
+  drawerId = null
+  $("drawer").dataset.open = "false"
+}
+
+function drawerPayload() {
+  const ttl = $("dw-ttl").value
+  const payload = { id: drawerId, content: $("dw-content").value, category: $("dw-category").value, priority: $("dw-priority").value, project: $("dw-project").value, tags: $("dw-tags").value }
+  if (ttl === "clear") payload.clearExpiry = true
+  else if (ttl.length > 0) payload.ttlDays = Number(ttl)
+  return payload
+}
+
+for (const button of document.querySelectorAll(".nav button")) button.onclick = () => { view = button.dataset.view; render() }
+$("q").oninput = (event) => { query = event.currentTarget.value; if (view === "search" || view === "hub") render() }
+$("q").onkeydown = (event) => { if (event.key === "Enter") { load(); if (view === "hub") view = "search"; render() } }
+$("btn-add").onclick = () => {
+  const text = prompt(t("prompt.add"))
+  if (!text || text.trim().length === 0) return
+  mutate(() => api("/api/entry/add", { content: text.trim() }), "toast.added")
+}
+$("btn-preview").onclick = async () => {
+  try {
+    const result = await api("/api/preview", { q: query.trim() })
+    $("modal-text").textContent = result.text || "—"
+    $("modal-stat").textContent = result.tokens + " tok / " + result.bytes + " B · max " + result.maxBytes + " B"
+    $("modal").dataset.open = "true"
+  } catch (error) { toast(error.message) }
+}
+$("modal-close").onclick = () => { $("modal").dataset.open = "false" }
+$("drawer-close").onclick = closeDrawer
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return
+  $("modal").dataset.open = "false"
+  closeDrawer()
+})
+$("dw-save").onclick = () => mutate(() => api("/api/entry/update", drawerPayload()), "toast.saved")
+$("dw-accept").onclick = () => mutate(async () => {
+  const payload = drawerPayload()
+  payload.action = "accept"
+  const result = await api("/api/inbox", payload)
+  closeDrawer()
+  return result
+}, "toast.accepted")
+$("dw-delete").onclick = () => {
+  if (!confirmTwice(t("confirm.deleteQ"), t("confirm.deleteWord"))) return
+  mutate(async () => {
+    const result = await api("/api/entry/delete", { id: drawerId, confirm: true })
+    closeDrawer()
+    return result
+  }, "toast.deleted")
+}
+$("dw-copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("dw-content").value)
+    toast(t("toast.copied"))
+  } catch { toast(t("toast.copyFail")) }
+}
+$("inbox-accept-all").onclick = () => mutate(() => api("/api/inbox/bulk", { action: "accept" }), "toast.allAccepted")
+$("inbox-reject-all").onclick = () => {
+  if (!confirmTwice(t("confirm.rejectAllQ"), t("confirm.rejectWord"))) return
+  mutate(() => api("/api/inbox/bulk", { action: "reject" }), "toast.allRejected")
+}
+$("set-enabled").onchange = (event) => mutate(() => api("/api/settings", { enabled: event.currentTarget.checked }))
+$("set-autoextract").onchange = (event) => mutate(() => api("/api/settings", { autoExtract: event.currentTarget.checked }))
+$("set-showindex").onchange = (event) => mutate(() => api("/api/settings", { showIndex: event.currentTarget.checked }))
+$("set-judge").onchange = (event) => mutate(() => api("/api/settings", { judgeMode: event.currentTarget.value }), "toast.saved")
+$("set-lang").onchange = async (event) => {
+  const next = event.currentTarget.value
+  try {
+    state = await api("/api/settings", { lang: next })
+    LANG = next
+    applyStaticText()
+    render()
+    toast(t("toast.saved"))
+  } catch (error) { toast(error.message) }
+}
+$("btn-save-settings").onclick = () => mutate(() => api("/api/settings", {
+  injectMode: $("set-mode").value,
+  maxBytes: Number($("set-maxbytes").value),
+  minScore: Number($("set-minscore").value),
+  maxRelevant: Number($("set-maxrelevant").value),
+  indexChars: Number($("set-indexchars").value),
+  currentProject: $("set-project").value,
+}), "toast.settingsSaved")
+$("btn-reset-settings").onclick = () => mutate(() => api("/api/settings", { reset: true }), "toast.reset")
+$("btn-export").onclick = async () => {
+  const data = await api("/api/export")
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+  const link = document.createElement("a")
+  link.href = URL.createObjectURL(blob)
+  link.download = "dsh-memory-export.json"
+  link.click()
+  URL.revokeObjectURL(link.href)
+  toast(t("toast.exported"))
+}
+
+LANG = LANGS.includes(window.__DSH_MEMORY_LANG__) ? window.__DSH_MEMORY_LANG__ : "en"
+applyStaticText()
+load()
+setInterval(() => { if (document.visibilityState === "visible" && !busy && drawerId === null) load() }, 6000)
+</script>
+</body>
+</html>

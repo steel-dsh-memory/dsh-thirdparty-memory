@@ -1,0 +1,62 @@
+name: Bug report
+description: Something broke in the plugin, the memory page, or the manager
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is an **unofficial third-party** project, not affiliated with DeepSeek.
+
+        Please do **not** paste real memory contents, personal data, absolute paths
+        containing your username, tokens, or screenshots of the memory page.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: package.json version or release tag
+      placeholder: "0.4.3"
+    validations:
+      required: true
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH version and build
+      placeholder: "DSH Desktop 0.2.15 (MSIX)"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: Redact paths, tokens and memory text before pasting.
+      render: text
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed memory contents, personal data and tokens from this report
+          required: true
+        - label: I searched existing issues before opening this one
+          required: true
