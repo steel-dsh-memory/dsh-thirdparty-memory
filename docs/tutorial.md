@@ -6,7 +6,7 @@ English root copy. 简体中文: [`tutorial.zh-CN.md`](tutorial.zh-CN.md) · 繁
 Plain-text versions ship alongside every language (`tutorial.txt`, `tutorial.zh-CN.txt`, `tutorial.zh-TW.txt`).
 
 Version: **0.4.3 (2026-11-10)**.
-> Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese.
+> Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose.
 
 
 This tutorial is written to be the only document you need: install, configure, use it every day, and fix it when something breaks.
