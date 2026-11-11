@@ -13,7 +13,7 @@ One master switch, automatic extraction, five kinds of memory, a review inbox, k
 > **Steel** — the first zero-trust local memory plugin for DSH.
 >
 > - Inspired by a big-tech black-box memory: *"Only the memories you actively request are shown here."* I got tired of that arrogance.
-> - Author: 15 years old. Previously a food-processing major (asked to leave after 9 days).
+> - Author: 15 years old. Previously a food-processing major at an unnamed light-industrial vocational secondary school in Dalian, Liaoning, the People's Republic of China (asked to leave after 9 days).
 > - Build cost: ¥50 in API fees, one Windows laptop.
 > - Core belief: **Never Trust the LLM.** Memory is the user's digital asset, not free fodder for the model.
 > - Storage: a single SQLite file that never leaves your machine. Uninstall it, or switch models? Take the file with you — your memory lives on.
