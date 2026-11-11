@@ -14,7 +14,7 @@ One master switch, automatic extraction, five kinds of memory, a review inbox, k
 >
 > - Inspired by a big-tech black-box memory: *"Only the memories you actively request are shown here."* I got tired of that arrogance.
 > - Author: 15 years old. Previously a food-processing major at an unnamed light-industrial vocational secondary school in Dalian, Liaoning, the People's Republic of China (asked to leave after 9 days).
-> - Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose.
+> - Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose. Please communicate on UTC+8 (China Standard Time), otherwise I may not receive your messages.
 > - Build cost: ¥50 in API fees, one Windows laptop.
 > - Core belief: **Never Trust the LLM.** Memory is the user's digital asset, not free fodder for the model.
 > - Storage: a single SQLite file that never leaves your machine. Uninstall it, or switch models? Take the file with you — your memory lives on.
