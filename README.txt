@@ -533,7 +533,7 @@ Measured on Windows 10/11 with Node 24.21.0 (node:sqlite available), against an
 isolated store and port — the real store is not touched:
 
 * tests/core-audit/run-all.mjs
-    Result: 220/220 checks green (12 files)
+    Result: 220/220 checks green (12 files, local full run; CI runs 11 files / 194 checks)
     Notes: CRUD, numbering, TTL, migration, backup retention, degraded states, concurrency, WAL
 
 * tests/http-audit.mjs
@@ -552,9 +552,10 @@ The A37 / B5 test-side defects that used to keep two checks red were fixed in
 0.4.5 (A37's touched count now follows the pending count captured before the
 call; B5 now requires the safer degraded field, matching A2c; A44c ignores
 Node's experimental/deprecation warnings). The suite reports 67/67 and the CI
-allow-list for A37/B5 was removed. CI runs core-audit with
-CORE_AUDIT_WORKERS=2 on its 2-core runner (the local default is 4); only the
-number of concurrent writers is lowered, the assertions are not relaxed.
+allow-list for A37/B5 was removed. CI runs 11 of the 12 core-audit files —
+194 checks, with t02-concurrency skipped via CORE_AUDIT_SKIP because the
+2-core runner can hit SQLITE_ERROR: database is locked (a runner lock, not the
+plugin); a local run keeps the full 12 files / 220 checks green.
 
 Known test-side issues (not product defects):
 

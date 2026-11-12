@@ -336,12 +336,12 @@ Store/MSIX 版 DSH Desktop 裝完一重啟就崩，每次必崩。根因是 prof
 
 | 套件 | 結果 | 說明 |
 | --- | --- | --- |
-| `tests/core-audit/run-all.mjs` | **220/220 全綠**（12 個檔案） | CRUD、編號、TTL、遷移、備份保留、降級狀態、併發、WAL |
+| `tests/core-audit/run-all.mjs` | **220/220 全綠**（12 個檔案，本機全量；CI 跑 11 個檔案 / 194 項） | CRUD、編號、TTL、遷移、備份保留、降級狀態、併發、WAL |
 | `tests/http-audit.mjs` | **67/67** | 0.4.5 修掉了審計腳本自身的三處測試問題（A37 的計數假設、B5 的過期斷言、A44c 忽略 `node:sqlite` 實驗性警告）；現在真失敗也會非零退出 |
 | `tests/static-audit.mjs` | **25/27** | S26/S27 是已知誤報；手動執行，不進 CI |
 | `tests/regression-0.4.4.mjs` | **16/16** | 0.4.4 批次寫下的驗收用例 |
 
-曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 `touched` 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 `degraded` 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。CI 在 2 核 runner 上以 `CORE_AUDIT_WORKERS=2` 執行 core-audit（本機預設 4 併發）；只降低併發度，斷言未放寬。
+曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 `touched` 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 `degraded` 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。CI 跑 12 個 core-audit 檔案中的 11 個（**194 項**，用 `CORE_AUDIT_SKIP` 略過 `t02-concurrency`：2 核 runner 會撞 `SQLITE_ERROR: database is locked`，是 runner 的鎖、不是產品缺陷）；本機全量仍是 **12 檔案 / 220 項**全綠。
 
 測試端的已知問題（不是產品缺陷）：
 

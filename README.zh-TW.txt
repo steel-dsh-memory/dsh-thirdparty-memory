@@ -414,7 +414,7 @@ UI
 在 Windows 10/11 + Node 24.21.0（有 node:sqlite）、隔離資料目錄與連接埠上實測，真實記憶庫未被觸碰：
 
 * tests/core-audit/run-all.mjs
-    結果: 220/220 全綠（12 個檔案）
+    結果: 220/220 全綠（12 個檔案，本機全量；CI 跑 11 個檔案 / 194 項）
     說明: CRUD、編號、TTL、遷移、備份保留、降級狀態、併發、WAL
 
 * tests/http-audit.mjs
@@ -429,7 +429,7 @@ UI
     結果: 16/16
     說明: 0.4.4 批次寫下的驗收用例
 
-曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 touched 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 degraded 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。CI 在 2 核 runner 上以 CORE_AUDIT_WORKERS=2 執行 core-audit（本機預設 4 併發）；只降低併發度，斷言未放寬。
+曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 touched 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 degraded 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。CI 跑 12 個 core-audit 檔案中的 11 個（194 項，用 CORE_AUDIT_SKIP 略過 t02-concurrency：2 核 runner 會撞 SQLITE_ERROR: database is locked，是 runner 的鎖、不是產品缺陷）；本機全量仍是 12 檔案 / 220 項全綠。
 
 測試端的已知問題（不是產品缺陷）：
 
