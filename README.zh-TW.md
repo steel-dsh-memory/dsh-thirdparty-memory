@@ -341,7 +341,7 @@ Store/MSIX 版 DSH Desktop 裝完一重啟就崩，每次必崩。根因是 prof
 | `tests/static-audit.mjs` | **25/27** | S26/S27 是已知誤報；手動執行，不進 CI |
 | `tests/regression-0.4.4.mjs` | **16/16** | 0.4.4 批次寫下的驗收用例 |
 
-曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 `touched` 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 `degraded` 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。
+曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 `touched` 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 `degraded` 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。CI 在 2 核 runner 上以 `CORE_AUDIT_WORKERS=2` 執行 core-audit（本機預設 4 併發）；只降低併發度，斷言未放寬。
 
 測試端的已知問題（不是產品缺陷）：
 

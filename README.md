@@ -425,7 +425,9 @@ The A37 / B5 test-side defects that used to keep two checks red were fixed in
 0.4.5 (A37's `touched` count now follows the pending count captured before the
 call; B5 now requires the safer `degraded` field, matching A2c; A44c ignores
 Node's experimental/deprecation warnings). The suite reports 67/67 and the CI
-allow-list for A37/B5 was removed.
+allow-list for A37/B5 was removed. CI runs core-audit with
+`CORE_AUDIT_WORKERS=2` on its 2-core runner (the local default is 4); only the
+number of concurrent writers is lowered, the assertions are not relaxed.
 
 Known test-side issues (not product defects):
 

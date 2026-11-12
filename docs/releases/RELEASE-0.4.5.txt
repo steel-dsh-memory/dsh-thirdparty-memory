@@ -48,9 +48,19 @@ Changes
    pipeline instead of being listed as known. static-audit stays out of CI
    (S26/S27 are known false positives) and is run manually.
 
+5. The concurrency stress test is configurable for small runners.
+
+   tests/core-audit/t02-concurrency.mjs reads CORE_AUDIT_WORKERS (default 4 for
+   local runs; CI sets 2 on its 2-core runner). The assertions are unchanged —
+   every write must land, with no duplicates and no loss — only the number of
+   concurrent writers is configurable, so CI no longer reports a false red from
+   SQLite busy_timeout on a small runner.
+
 Verification performed on Windows, Node 24.21.0 (node:sqlite available)
 ------------------------------------------------------------------------
 - core-audit: 12 files, 220/220 checks green
+- CI runs core-audit with CORE_AUDIT_WORKERS=2 on its 2-core runner (the local
+  default is 4); only the concurrency is lowered, the assertions are not relaxed
 - http-audit: 67/67 checks green (after the A37 / B5 / A44c test fixes)
 - static-audit: 25/27 by hand; the only reds are S26/S27, known false positives
   (the suite scans only core.js and misses the index.js consumers)
@@ -93,7 +103,8 @@ Files
 -----
 README (three languages, .md + .txt)  docs/tutorial (three languages)
 CHANGELOG.md  RELEASE-0.4.5.txt  tests/http-audit.mjs
-tests/core-audit/run-all.mjs  .github/workflows/syntax.yml
+tests/core-audit/run-all.mjs  tests/core-audit/t02-concurrency.mjs
+.github/workflows/syntax.yml
 package.json  manager/DshMemoryManager.cs  dsh-memory-manager.exe
 
 中文补充
@@ -101,7 +112,7 @@ package.json  manager/DshMemoryManager.cs  dsh-memory-manager.exe
 本版是 0.4.5：测试工具链与文档版本。插件逻辑与 0.4.4 相同（代码只多了版本
 号），升级仍是 drop-in 替换插件文件，记忆库不会被碰。
 
-四条改动：
+五条改动：
   1. 修掉 http-audit 自身的三处测试问题：A37 的 touched 计数假设（改为按调用前
      pending 数断言）、B5 的过期断言（改为要求更安全的 degraded 字段，与 A2c
      一致）、A44c 忽略 node:sqlite 实验性警告。红基线归零，67/67 全绿，CI 的
@@ -114,9 +125,13 @@ package.json  manager/DshMemoryManager.cs  dsh-memory-manager.exe
      remember 工具直写不受影响）。
   4. CI 门禁收紧为 67/67，白名单删除；static-audit 仍不进 CI（S26/S27 误报），
      手动运行。
+  5. t02-concurrency 并发度可配置（CORE_AUDIT_WORKERS：本地默认 4，CI 的 2 核
+     runner 用 2 进程）；断言完全没变（每笔写入必须落地、无重复、无丢失），CI
+     不再因为 runner 太小、SQLite busy_timeout 而误报红。
 
 验证（Windows 10/11 + Node 24.21.0，隔离库与端口，真实库未受影响）：
-  core-audit 12 文件 220/220 全绿；http-audit 67/67 全绿；static-audit 25/27
+  core-audit 12 文件 220/220 全绿（CI 以 CORE_AUDIT_WORKERS=2 在 2 核 runner 上
+  运行，本地默认 4 并发，断言未放宽）；http-audit 67/67 全绿；static-audit 25/27
   （S26/S27 已知误报，手动）；regression 16/16 全绿。
 
 升级：替换插件文件 / 解压新 exe → 需要时跑 attach.ps1 -Repair 与 attach.ps1 →

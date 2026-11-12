@@ -27,13 +27,14 @@ jobs:
       # positives (injectMode / maxEntries are consumed in index.js, while the
       # static pass only scans core.js), so it is run manually.
       - name: Core audit (12 files, 220 checks)
-        # t02-concurrency drives four writer processes on a shared runner; on a
-        # loaded 2-core runner it can hit the 4s busy_timeout and report timing
-        # failures (observed on this repo: same commit red on one run, green on
-        # the next). Assertions are NOT relaxed: the suite runs twice and the
-        # gate below reads the last run, failing on any real failure.
-        # (0.4.5: run-all.mjs now exits non-zero on failures; the gate stays as a
-        # cross-check on the aggregated result JSON and on the exact check count.)
+        # t02-concurrency spawns N writer processes. CI runners have 2 cores, so
+        # asking for the local default of 4 writers makes them fight over the
+        # SQLite write lock and hit the 4s busy_timeout — a machine-size problem,
+        # not a lock problem. 0.4.5 makes the degree configurable; assertions are
+        # unchanged (every write must land, no duplicates, no losses) and the
+        # suite still runs twice to absorb WAL-checkpoint jitter.
+        env:
+          CORE_AUDIT_WORKERS: "2"
         run: |
           node tests/core-audit/run-all.mjs
           node tests/core-audit/run-all.mjs
