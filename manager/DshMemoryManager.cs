@@ -32,7 +32,7 @@ using System.Windows.Forms;
 /// </summary>
 static class Program
 {
-    const string Version = "0.4.0";
+    const string Version = "0.4.4";
     const int DefaultPort = 7891;
     const string DefaultHost = "127.5.0.1";
     const string MutexName = "Global\\dsh-thirdparty-memory-manager";
@@ -510,9 +510,15 @@ static class Program
         serverJs = Path.Combine(appDir, "server.js");
         nodeExe = Path.Combine(runtimeDir, "node.exe");
 
-        // 存储目录：--store > 配置 storeDir > <插件目录>\data
+        // 存储目录：--store > 配置 storeDir > 兼容旧默认（<安装目录>\data，仅当已有数据）>
+        // %APPDATA%\dsh-thirdparty-memory（与插件自身 defaultDataDir 一致，数据与安装分离）
         string savedStore = LoadStringSetting("storeDir");
-        PreviousStoreDir = savedStore.Length > 0 ? savedStore : Path.Combine(appDir, "data");
+        string legacyStore = Path.Combine(appDir, "data");
+        bool legacyHasData = Directory.Exists(legacyStore)
+            && (File.Exists(Path.Combine(legacyStore, "memory.json")) || File.Exists(Path.Combine(legacyStore, "memory.sqlite")));
+        string defaultStore = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "dsh-thirdparty-memory");
+        PreviousStoreDir = savedStore.Length > 0 ? savedStore : (legacyHasData ? legacyStore : defaultStore);
         string candidate = StoreDirOverride.Length > 0 ? StoreDirOverride : PreviousStoreDir;
         string storeError = ValidateStore(candidate, PreviousStoreDir);
         if (storeError != null) throw new Exception("存储目录不合规：" + storeError);

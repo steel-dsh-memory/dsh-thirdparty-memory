@@ -13,7 +13,10 @@
     enabled: true            # hard switch: off = no injection, no extraction, add fails
     judgeMode: model         # model | rules | off  — who decides what to remember
     autoExtract: true        # only used when judgeMode: rules
-    inbox: true              # rule-extracted persona facts need review before injection
+    inbox: true              # all automatic writes (profile + explicit) go to the inbox
+                             # for review before injection · 所有自动写入先进收件箱待审批；
+                             # inbox: false = automatic writes are active immediately
+                             # (the remember tool is an explicit agent call, unaffected)
     injectMode: relevant     # relevant = keyword-selected · all = everything
 
     maxBytes: 8192           # injection byte budget

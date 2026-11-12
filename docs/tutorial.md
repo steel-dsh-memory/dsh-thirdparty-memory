@@ -5,7 +5,7 @@
 English root copy. 简体中文: [`tutorial.zh-CN.md`](tutorial.zh-CN.md) · 繁體中文: [`tutorial.zh-TW.md`](tutorial.zh-TW.md).
 Plain-text versions ship alongside every language (`tutorial.txt`, `tutorial.zh-CN.txt`, `tutorial.zh-TW.txt`).
 
-Version: **0.4.3 (2026-11-10)**.
+Version: **0.4.4 (2026-11-12)**.
 > Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose. Please communicate on UTC+8 (China Standard Time), otherwise I may not receive your messages.
 
 
@@ -20,7 +20,7 @@ Four moving parts. Knowing which one is broken is 90% of troubleshooting.
 | Part | Lives where | What it does | How to restart |
 | --- | --- | --- | --- |
 | **Plugin** (`index.js` + `core.js`) | inside a DSH profile, loaded by the Cordis loader | injects the 【long-term memory】 section, registers the `remember` tool, listens to conversation events | **restart DSH** (bundles load at boot only) |
-| **Memory page server** (`server.js` + `ui.html` + `core.js`) | a standalone `node` process | serves <http://127.0.0.1:7891/>, reads/writes the same store | `dsh-memory-manager.exe --restart`, or tray ▸ Restart |
+| **Memory page server** (`server.js` + `ui.html` + `core.js`) | a standalone `node` process | serves <http://127.5.0.1:7891/> (also on `127.0.0.1`), reads/writes the same store | `dsh-memory-manager.exe --restart`, or tray ▸ Restart |
 | **Manager exe** (`dsh-memory-manager.exe`) | wherever you put it | extracts the bundled runtime, starts/stops the page server, tray menu, storage & port & language settings | just relaunch it |
 | **Store** (SQLite `memory.sqlite`, JSON fallback) | `dataFile` (default `%APPDATA%\dsh-thirdparty-memory\memory.sqlite`, or your chosen storage folder) | the single source of truth both the plugin and the page read | no restart needed; every operation re-reads the store |
 
@@ -51,10 +51,10 @@ A profile is just a folder containing `package.json`, `cordis.patch.yml`, `cordi
 
 ### 1.2 Route A — the manager exe (recommended)
 
-1. Put `dsh-memory-manager.exe` anywhere writable (e.g. `D:\tools\`). It is a single ~34 MB file; nothing else is required.
+1. Download `dsh-memory-manager.exe` from the [Releases](../../../releases) page (it is not committed to this repository) and put it anywhere writable (e.g. `D:\tools\`). It is a single ~34 MB **unsigned** file; Windows SmartScreen may warn about it, and `build-single-exe.ps1` rebuilds it from source if you prefer. Nothing else is required.
 2. Double-click it.
    * **First run** asks for the UI language → English / 简体中文 / 繁體中文. The choice is written to `%LOCALAPPDATA%\dsh-thirdparty-memory\config.json` and stays until you change it (tray ▸ Language).
-   * It extracts the bundled Node runtime and the app files into `%LOCALAPPDATA%\dsh-thirdparty-memory\`, starts the page server and opens <http://127.0.0.1:7891/>.
+   * It extracts the bundled Node runtime and the app files into `%LOCALAPPDATA%\dsh-thirdparty-memory\`, starts the page server and opens <http://127.5.0.1:7891/>.
    * A tray icon appears: `Open memory page`, `Copy address`, `Storage location…`, `Open storage folder`, `Change port…`, `Restart service`, `Stop service`, `Attach to DSH…`, `Open install folder`, `Language`, `Quit`.
 3. Tray ▸ **Attach to DSH…** (or run `dsh-memory-manager.exe --install`). For every profile it finds it creates a junction, registers the bundle, writes the patch entry and points the plugin's `dsh-tools` peer at the host's copy.
 4. **Restart DSH.**
@@ -137,7 +137,7 @@ Then restart DSH.
 ### 1.5 First-run checklist
 
 ```
-[ ] memory page opens on http://127.0.0.1:7891/ (and http://127.0.0.1:7891/)
+[ ] memory page opens on http://127.5.0.1:7891/ (http://127.0.0.1:7891/ also works)
 [ ] Settings → Plugins shows dsh-thirdparty-memory as mounted
 [ ] a new chat can list memories (ask: "list my memories")
 [ ] the page and the agent see the same number of entries
@@ -165,7 +165,7 @@ Whitelisted keys a user-layer setting may override: `injectMode`, `judgeMode`, `
 | `enabled` | `true` | You want a global kill switch (e.g. a sensitive session) |
 | `judgeMode` | `model` | `rules` if you want zero-token extraction; `off` if you want only explicit requests |
 | `autoExtract` | `true` | Only meaningful with `judgeMode: rules` |
-| `inbox` | `true` | `false` to let rule-extracted persona facts go live immediately |
+| `inbox` | `true` | Covers **all** automatic writes: `true` stores them as pending in the review inbox, `false` stores them active. Explicit `remember` calls are unaffected |
 | `injectMode` | `relevant` | `all` if you have very few memories and want them always visible |
 | `maxBytes` | `8192` | Lower for cheap models / long contexts; raise if you have many project facts |
 | `maxRelevant` | `6` | Raise when your questions span many topics |
@@ -358,6 +358,66 @@ Then start DSH again. A repaired file is first copied to `package.json.bak_bom_<
 
 **Smaller fixes.** `ephemeral` entries now carry the session id of the call that created them (they used to be dormant forever); an oversized request body gets `413` instead of a reset connection.
 
+### 2.12 0.4.4 fixes
+
+0.4.4 is a correctness, hardening and release-engineering release. Nothing to
+migrate or configure: replace the plugin files (and take the exe from Releases),
+keep your store.
+
+**The master switch gates writes.** With `enabled: false` every write route
+(`entry/add`, `entry/update`, `entry/delete`, `inbox`, `inbox/bulk`) answers
+`409 MEMORY_DISABLED`; `/api/settings` stays writable so you can turn memory back
+on, and reads (`/api/state`, `/api/export`, `/api/preview`) still work.
+
+**Inbox actions are distinct.** `accept` applies the submitted fields and makes
+the entry active; `reject` only sets `rejected`; `edit` applies the fields but
+keeps the current status. `inbox/bulk` accepts only `accept` / `reject`. Content
+over 2048 bytes answers `400` before anything is written.
+
+**Settings are checked before they are written.** `injectMode` must be
+`relevant` / `all` and `showIndex` a boolean; anything else answers `400` with
+the current config echoed back, and nothing is stored. `judgeMode` only accepts
+`model` / `rules` / `off`, `lang` is normalised, and the numeric keys only accept
+finite values `> 0`; invalid values are ignored rather than written, so settings
+are never half-applied. `{reset: true}` restores every default, including
+`enabled`.
+
+**Export and overrides are transparent.** `/api/export` also carries `degraded`,
+`revision`, `dataFile` and `storage`; `settings.overrides` echoes the deployment
+values (the same allow-list the page writes, plus `lang`).
+
+**HTTP errors are precise.** A known path with an unsupported method answers
+`405` + `Allow`; `PATCH` / `DELETE` still answer `404`. `id` and `number` are
+cross-checked: a shifted number answers `409 MEMORY_CONFIRM_MISMATCH`. Duplicate
+detection is normalised (case-, whitespace- and punctuation-insensitive), and
+`sameFile()` compares paths correctly per platform.
+
+**Security.** The injected section states that it is data, not instructions;
+each line is tagged `[user]` / `[auto]` / `[agent]`; entries containing
+instruction-like text are moved to the index-only section
+`疑似指令性文本（仅索引）：`. All automatic writes go to the inbox by default
+(`inbox: true`); explicit `remember` calls still write directly. The page server
+only accepts a `Host` header naming a loopback address and the configured port —
+anything else gets `421 Misdirected Request`.
+
+**UI.** Invalid numeric settings are refused in place; polling no longer
+overwrites unsaved edits; export failures show a toast; a 720 px breakpoint makes
+360 px windows usable; statuses (including `archived`) are fully localised;
+category chips count exactly what the list shows; update/delete/inbox send both
+`id` and `number` and understand the new 409 / 400 responses.
+
+**Engine.** `autoWriteStatus()` is the single inbox decision;
+`entriesForAllMode()` no longer leaks another session's ephemeral entries;
+`pluginBuildId()` falls back to `unknown-<base36 timestamp>`; the page process is
+replaced on upgrade; a failed migration never leaves a half-created database;
+`renderInjection()` prints no empty section header.
+
+**Verification (0.4.4).** core-audit 12 files / **220 checks green**; http-audit
+**65/67** (the 2 remaining reds — A37 and B5 — are contradictions inside the
+audit script itself); static-audit **25/27** (S26/S27 are false positives; run it
+manually with `node tests/static-audit.mjs`). CI runs `node --check`, the export
+smoke test, core-audit and http-audit.
+
 ---
 
 ## 3. Daily use
@@ -463,7 +523,7 @@ dsh-memory-manager.exe --start       :: start it
 > Reading that exit code: the manager is a GUI-subsystem executable, so PowerShell's `&` returns before it finishes and `$LASTEXITCODE` stays empty. Use `cmd /c "dsh-memory-manager.exe --status & echo %ERRORLEVEL%"` or `Start-Process -Wait -PassThru …` when you need the number.
 
 * **exit 3** → someone else owns the port. `--port 7900`, or tray ▸ Change port…
-* Start succeeds but the browser shows nothing → check `http://127.0.0.1:7891/` as well as `127.5.0.1`.
+* Start succeeds but the browser shows nothing → check `http://127.5.0.1:7891/` as well as `http://127.0.0.1:7891/`.
 * The page worked and then went blank → the process died (killed by a cleanup script, a reboot, or the OOM killer). `--start` brings it back; the plugin also spawns it at DSH boot.
 
 ### 4.3 "My memories are gone!"
@@ -526,7 +586,9 @@ dsh-thirdparty-memory/
 ├── attach.ps1            multi-host installer (junction + bundles + patch + peer + dataFile)
 ├── build-single-exe.ps1  rebuilds the single-file manager
 ├── build-release.ps1     packages release\dsh-thirdparty-memory-<version>.zip (+ leak check)
+├── RELEASE-0.4.4.txt     release notes for this version (English root + Chinese notes)
 ├── tools/md2txt.mjs      regenerates the .txt docs from the .md sources
+├── tests/                audit + regression suites (CI runs core-audit and http-audit; static-audit is manual)
 ├── manager/
 │   ├── DshMemoryManager.cs   single-file manager source (embeds Node + docs)
 │   └── Program.cs            legacy "same-folder" manager source (not shipped)
@@ -548,14 +610,20 @@ The live store is not inside the plugin folder any more: it defaults to `%APPDAT
 | GET | `/api/state?q=&session=` | — | config, settings, entries, dashboard, preview |
 | GET | `/api/export` | — | full JSON |
 | POST | `/api/entry/add` | `{content, category?, project?, priority?, tags?, ttlDays?}` | 400 empty, 409 duplicate |
-| POST | `/api/entry/update` | `{id, ...fields}` | `ttlDays`, `clearExpiry` |
-| POST | `/api/entry/delete` | `{id}` | one at a time by design |
-| POST | `/api/inbox` | `{id, action: accept\|reject, content?}` | |
-| POST | `/api/inbox/bulk` | `{action}` | |
+| POST | `/api/entry/update` | `{id, number?, ...fields}` | `ttlDays`, `clearExpiry`; a shifted number answers `409 MEMORY_CONFIRM_MISMATCH` |
+| POST | `/api/entry/delete` | `{id, number?, confirm: true}` | one at a time by design; also re-checks the number |
+| POST | `/api/inbox` | `{id, number?, action: accept\|reject\|edit, content?, …}` | accept = apply + active · reject = status only · edit = apply, status unchanged |
+| POST | `/api/inbox/bulk` | `{action: accept\|reject}` | anything else answers `400` |
 | POST | `/api/settings` | `{enabled?, autoExtract?, judgeMode?, injectMode?, showIndex?, lang?, maxBytes?, …}` | `{reset:true}` restores defaults |
 | POST | `/api/preview` | `{q?, session?}` | renders the injection |
 
-All POSTs require `Content-Type: application/json`.
+All POSTs require `Content-Type: application/json`. The server only answers when
+the `Host` header names a loopback address (`127.0.0.1`, `127.5.0.1`,
+`localhost`, `::1`, or the configured `pageHost`) and the configured port;
+otherwise it returns `421 Misdirected Request`. A registered path called with an
+unsupported method returns `405` + `Allow`, while `PATCH` / `DELETE` and other
+unknown methods return `404`. When the master switch is off, write routes return
+`409 MEMORY_DISABLED` and `/api/settings` remains writable.
 
 ## Appendix C — quick reference
 
@@ -581,6 +649,11 @@ powershell -ExecutionPolicy Bypass -File build-release.ps1
 
 :: regenerate the .txt docs from the Markdown sources
 node tools/md2txt.mjs README.md docs/tutorial.md
+
+:: run the audits (CI runs the first two; static-audit is manual)
+node tests/core-audit/run-all.mjs
+node tests/http-audit.mjs
+node tests/static-audit.mjs
 ```
 
 License: MIT. The bundled Node runtime is MIT as well — see `docs/NODE-LICENSE.txt`.

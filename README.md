@@ -20,7 +20,7 @@ One master switch, automatic extraction, five kinds of memory, a review inbox, k
 > - Storage: a single SQLite file that never leaves your machine. Uninstall it, or switch models? Take the file with you — your memory lives on.
 
 ```
-Version   : 0.4.3 (2026-11-10) · MIT · unofficial
+Version   : 0.4.4 (2026-11-12) · MIT · unofficial
 Platforms : DSH Desktop (MSIX) · DeepSeek Harness portable (Electron) · CLI `dsh web`
 Runtime   : Node.js 18+ (the exe ships Node 24; SQLite storage needs `node:sqlite`, Node 22.5+)
 Storage   : local SQLite through the built-in `node:sqlite` (WAL) — no server, no cloud, no telemetry
@@ -42,17 +42,17 @@ dsh-thirdparty-memory splits the difference: memories are **classified**, inject
 
 | | |
 | --- | --- |
-| **Four categories** | `global` (always injected) · `project` (activates with its project) · `persona` (always injected) · `ephemeral` (this session only) · plus `general` |
+| **Five categories** | `global` (always injected) · `project` (activates with its project) · `persona` (always injected) · `ephemeral` (this session only) · plus `general` |
 | **Keyword-relevant injection** | Only entries matching the current message enter the prompt; the rest collapse into a numbered index. Typically 6.5 KB → 1.2 KB on unrelated questions. |
 | **Multi-topic coverage** | Mention several things in one sentence and each topic gets its own representative entries, so one hot topic cannot eat the whole budget. |
 | **Explicit recall** | Say "extract all memories about X" to drop the relevance threshold and get the whole batch (the budget widens too). |
-| **Review inbox** | Auto-extracted persona facts wait in the inbox; they are injected only after you accept them. |
-| **Self-directed writing** | The agent judges what is worth keeping (pitfalls, conclusions, personal facts) and writes it without asking — `judgeMode: model` (default). |
+| **Review inbox** | Every automatic write waits in the inbox; nothing the plugin infers reaches the prompt until you accept it. Only an explicit `remember` call from the agent writes directly. |
+| **Self-directed writing** | The agent judges what is worth keeping (pitfalls, conclusions, personal facts) and writes it without asking — `judgeMode: model` (default). Explicit `remember` writes go in directly; everything the plugin infers on its own goes through the inbox first. |
 | **Update, don't duplicate** | The agent searches first and updates the existing entry: one fact, one entry, always the latest text. |
 | **`[全局]` prefix** | Any memory whose text starts with `[全局]` / `[global]` is injected every turn. |
 | **Token dashboard** | See exactly how many bytes/tokens each section costs, with warnings when always-on memories crowd the budget. |
 | **Prompt preview** | One click shows the exact text that would be injected into a new chat. |
-| **Single-file manager** | `dsh-memory-manager.exe` (~34 MB) embeds Node + everything; double-click, tray icon, no URL to remember. |
+| **Single-file manager** | `dsh-memory-manager.exe` (~34 MB, **unsigned**, distributed through GitHub Releases) embeds Node + everything; double-click, tray icon, no URL to remember. |
 | **SQLite store** | `node:sqlite` (built into Node), WAL mode, one local database file — still nothing to install. |
 | **Local vector index** | Character/word n-grams hashed into 256 dimensions, cosine similarity blended with keyword scoring — literal closeness, not synonyms; `vector: false` turns it off. |
 | **Zero runtime deps** | The server is `node:http`; there is nothing to `npm install`. |
@@ -94,9 +94,9 @@ If no scene and no quote come to mind, write nothing — an empty persona sectio
 
 ## Install
 
-### 1. Manager exe (easiest)
+### 1. Manager exe (from Releases)
 
-Run `dsh-memory-manager.exe`. The first launch asks for the UI language (English / 简体中文 / 繁體中文), extracts the bundled runtime into `%LOCALAPPDATA%\dsh-thirdparty-memory\`, starts the memory page and opens it in your browser. A tray icon stays around:
+Download `dsh-memory-manager.exe` from the [Releases](../../releases) page — it is not committed to this repository. It is a single **unsigned** file (~34 MB) that embeds the Node runtime; Windows SmartScreen may warn about it, and you can build it yourself with `build-single-exe.ps1` if you prefer to compile the source. The first launch asks for the UI language (English / 简体中文 / 繁體中文), extracts the bundled runtime into `%LOCALAPPDATA%\dsh-thirdparty-memory\`, starts the memory page and opens it in your browser. A tray icon stays around:
 
 `Open memory page` · `Copy address` · `Storage location…` · `Open storage folder` · `Change port…` · `Restart/Stop service` · `Attach to DSH…` · `Language` · `Quit`
 
@@ -117,9 +117,11 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -CreateWeb      # create a
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair         # strip a UTF-8 BOM from every profile manifest
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -ProfileDir "C:\Users\you\.dsh\profiles\web"
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-mem/memory.json"
+powershell -ExecutionPolicy Bypass -File .\attach.ps1 -PluginDir "D:\plugins\dsh-thirdparty-memory"
+powershell -ExecutionPolicy Bypass -File .\attach.ps1 -RuntimeDir "C:\path\to\dsh\node_modules\@deepseek-ai" -Force
 ```
 
-Without `-DataFile`, the script keeps whatever `dataFile` the patch already has — it no longer deletes that line, which used to move the store behind your back. `-Repair` only fixes manifests: it prints `fixed=… clean=… invalid=…` and exits.
+The script is idempotent (`[skip]` means "already fine"). It auto-detects every DSH home it can find (MSIX, portable, CLI), creates the junction, registers the bundle, writes the patch row and — with `-RuntimeDir` — points the plugin's `dsh-tools` peer at the host's copy. Without `-DataFile`, the script keeps whatever `dataFile` the patch already has — it no longer deletes that line, which used to move the store behind your back. `-Repair` only fixes manifests: it prints `fixed=… clean=… invalid=…` and exits.
 
 ### 3. Manual (four steps)
 
@@ -138,7 +140,7 @@ For a profile directory such as `%APPDATA%\com.yeagoo.dsh-desktop\harness\profil
    ```
 4. give the plugin its peer: junction `<plugin>\node_modules\@deepseek-ai\dsh-tools` → the host's `@deepseek-ai\dsh-tools`
 
-**Restart DSH.** Bundles are read at boot only. Afterwards *Settings → Plugins* lists `dsh-thirdparty-memory`, and the memory page is up at <http://127.0.0.1:7891/>.
+**Restart DSH.** Bundles are read at boot only. Afterwards *Settings → Plugins* lists `dsh-thirdparty-memory`, and the memory page is up at <http://127.5.0.1:7891/> (also served on `127.0.0.1`, so <http://localhost:7891/> works too).
 
 ---
 
@@ -167,7 +169,7 @@ Nothing to type for persona facts: the agent applies the four properties above b
 
 ## The memory page
 
-<http://127.0.0.1:7891/> (served on `127.0.0.1` as well)
+<http://127.5.0.1:7891/> (also served on `127.0.0.1`, so `http://localhost:7891/` works too)
 
 | Panel | What it does |
 | --- | --- |
@@ -189,7 +191,7 @@ Two layers, later wins: `cordis.patch.yml` (deployment) → memory page settings
 | `enabled` | `true` | Hard switch. Off = no injection, no extraction, `add` fails. |
 | `judgeMode` | `model` | `model` = the agent decides what to remember · `rules` = built-in regex fallback · `off` = never auto-record |
 | `autoExtract` | `true` | Enables rule extraction when `judgeMode: rules` |
-| `inbox` | `true` | Rule-extracted persona facts require review |
+| `inbox` | `true` | **Every automatic write** (inferred notes) is stored as pending and must be reviewed; `false` writes them directly as active. Explicit `remember` calls are unaffected. |
 | `injectMode` | `relevant` | `relevant` = keyword-selected · `all` = everything |
 | `maxBytes` | `8192` | Injection byte budget |
 | `maxRelevant` | `6` | Max matched entries per turn |
@@ -280,6 +282,156 @@ The fix: both installers (`attach.ps1` and the manager exe) now write UTF-8 **wi
 
 ---
 
+## 0.4.4 fixes
+
+0.4.4 is a correctness, hardening and release-engineering release on top of 0.4.3.
+No storage or configuration change: replacing the plugin files is enough, and the
+SQLite store and the JSON store are read exactly as before. The memory folder is
+never touched by an upgrade.
+
+### Server semantics
+
+* **The master switch is a real gate.** With `enabled: false`, every write route
+  (`entry/add`, `entry/update`, `entry/delete`, `inbox`, `inbox/bulk`) answers
+  `409 MEMORY_DISABLED`. `/api/settings` stays writable so the switch can be
+  turned back on, and `GET /api/state`, `/api/export`, `/api/preview` keep
+  working. The existing degraded-store `409` still takes precedence.
+* **`inbox/bulk` validates `action`.** Only `accept` and `reject` are accepted;
+  anything else answers `400`.
+* **`accept`, `reject` and `edit` are three different operations.** `accept`
+  applies the submitted `content` / `category` / `priority` / `project` / `tags` /
+  `ttlDays` and sets `status: active`; `reject` only sets `status: rejected`;
+  `edit` applies the same field overrides but keeps the current status (a pending
+  entry stays pending). Unknown actions answer `400`.
+* **Length is checked before the write.** An inbox accept/edit whose content is
+  over 2048 bytes answers `400` and nothing is stored.
+* **Settings are validated before they are written.** `injectMode` must be
+  `relevant` / `all` and `showIndex` a boolean — anything else answers `400`
+  (with the current configuration echoed back) and nothing is stored.
+  `judgeMode` only accepts `model` / `rules` / `off`, `lang` goes through
+  `normalizeLang`, and the numeric keys (`maxRelevant`, `minScore`, `maxBytes`,
+  `maxEntries`, `indexChars`, `perCluster`, `recallMaxBytes`, `maxRecall`) only
+  accept finite values `> 0` (stored as integers); values that fail those rules
+  are ignored rather than written, so the settings can never end up
+  half-applied.
+* **`{reset: true}` restores every default**, including `enabled`, `judgeMode`,
+  `lang`, `perCluster`, `recallMaxBytes` and `maxRecall`.
+* **`/api/export` is self-describing.** The top level now also carries
+  `degraded` (`null` when healthy), `revision`, `dataFile` and `storage`, so a
+  snapshot can be judged without a second request.
+* **`settings.overrides` echoes the deployment layer.** The same
+  `OVERRIDABLE_CONFIG_KEYS` allow-list the page writes is read back (plus
+  `lang`), so "what will actually be used" is visible in one place.
+* **`405` with `Allow` for a known path.** A registered path called with an
+  unsupported method answers `405` and lists the methods it supports;
+  `PATCH` / `DELETE` and other unknown methods still answer `404`.
+* **`id` and `number` are cross-checked.** `update` / `delete` / `inbox` accept
+  both; if the number now points at a different entry than the id, the request is
+  refused with `409 MEMORY_CONFIRM_MISMATCH` ("编号已变化，请刷新后重试") instead of
+  changing the wrong memory.
+* **Duplicate detection is normalised.** `add` compares
+  `normalizeForDedupe()` forms (case-, whitespace- and punctuation-insensitive),
+  so "Same  fact." and "same fact" are recognised as the same memory. The
+  exact-equality behaviour used elsewhere is unchanged.
+* **`sameFile()` is platform-correct.** Windows path comparison normalises
+  separators and case; other platforms compare case-sensitively with forward
+  slashes.
+
+### UI
+
+* **Invalid numbers are refused before the request.** Saving settings validates
+  `maxBytes`, `maxRelevant`, `minScore`, `indexChars` (and the other numeric
+  fields) in place: the row shows an error, nothing is sent, and no success toast
+  appears.
+* **Polling no longer overwrites unsaved edits.** The 6-second refresh skips the
+  settings panel while the form is dirty or focused; the rest of the page still
+  updates.
+* **Export failures are visible.** A failed export shows a toast instead of an
+  unhandled promise rejection.
+* **Narrow screens are supported.** A 720 px breakpoint folds the 224 px sidebar
+  into a top bar and switches the grid to one column, so a 360 px wide window has
+  no horizontal scroll.
+* **Statuses are localised.** `active` / `pending` / `rejected` / `archived` go
+  through `t("status." + status)`, and `archived` has its own label and colour in
+  the list and in the drawer.
+* **Category chips match the list.** Chip counts exclude pending entries exactly
+  like the list does, so the number on a chip equals the visible rows.
+* **The UI speaks the new server semantics.** Update/delete/inbox requests send
+  both `id` and `number`; `409 MEMORY_CONFIRM_MISMATCH` shows "编号已变化，已刷新"
+  and reloads; `409 MEMORY_DISABLED` shows "记忆已关闭"; `400` shows the server's
+  message and `404` keeps its old wording. Inbox accept sends the full field set
+  and edit stays `edit` — it is never sent as accept.
+
+### Engine and rendering
+
+* **Every auto write lands in the inbox by default** through
+  `autoWriteStatus()`: `inbox: false` → `active`, otherwise `pending` (profile and
+  explicit captures alike). The inbox configuration semantics are unchanged
+  (default `true`).
+* **`injectMode: all` no longer leaks sessions.** `entriesForAllMode()` drops
+  ephemeral entries that belong to other sessions and keeps the current session's
+  ephemeral entries as ephemeral; a second window or a subagent can no longer see
+  another conversation's scratch notes.
+* **`pluginBuildId()` fails soft.** When the source hash cannot be computed it
+  caches `unknown-<timestamp base36>` (different per process) instead of throwing
+  or returning an empty id.
+* **The page process is replaced on upgrade.** The new process probes
+  `/api/health`, compares the build identity and only then retires the old
+  detached page server — previously a page started before an upgrade could keep
+  serving old code forever.
+* **A failed JSON → SQLite migration leaves no half-created database**, so the
+  next read stays degraded (read-only) instead of accepting writes into an empty
+  store. The backend cache key also includes the legacy source path, so
+  `storageInfo()` before the first `loadStore()` can no longer skip the one-time
+  migration.
+* **Rendering knows when to stay quiet.** `renderInjection()` no longer prints a
+  section header with no entries; the budget / omission logic is unchanged.
+* **Smaller fixes.** `storageInfo()` reports the number of expired entries and
+  `parseTags()` de-duplicates tags.
+
+### Release engineering
+
+* **`attach.ps1` is back in the repository** from the canonical copy, with no
+  machine-specific paths; "route B" above lists exactly the flags it supports.
+* **The manager exe ships through GitHub Releases**, not the repository. The
+  README explains the unsigned single file and how to rebuild it
+  (`build-single-exe.ps1`). The stale `dsh-memory-manager.exe` entry was removed
+  from the npm `files` list because the artifact is git-ignored and build-made.
+* **The manager source matches the binary.** `manager/DshMemoryManager.cs` is the
+  0.4.3-era source (default store under `%APPDATA%`, legacy-folder detection,
+  remembering the last store) with `Version = "0.4.4"`; the stale 0.4.0 copy is
+  gone.
+* **CI runs the real suites.** `.github/workflows/syntax.yml` keeps
+  `node --check` and the export smoke test and adds
+  `tests/core-audit/run-all.mjs` and `tests/http-audit.mjs`, each followed by a
+  gate. `tests/static-audit.mjs` is deliberately manual — see below.
+* **One address everywhere.** The default is `127.5.0.1:7891` and the server also
+  binds `127.0.0.1`; the three languages and the tutorials say exactly that.
+
+### Verification
+
+Measured on Windows 10/11 with Node 24.21.0 (`node:sqlite` available), against an
+isolated store and port — the real store is not touched:
+
+| Suite | Result | Notes |
+| --- | --- | --- |
+| `tests/core-audit/run-all.mjs` | **220/220 checks green** (12 files) | CRUD, numbering, TTL, migration, backup retention, degraded states, concurrency, WAL |
+| `tests/http-audit.mjs` | **65/67** | the 2 remaining reds are contradictions inside the audit script itself: A37 and B5 |
+| `tests/static-audit.mjs` | **25/27** | S26/S27 are known false positives; run manually, not in CI |
+| `tests/regression-0.4.4.mjs` | green | acceptance cases written for this release |
+
+Known test-side issues (not product defects):
+
+* **A37** expects `inbox/bulk accept` to report `touched = 3` while it also relies
+  on pending entries left by A19/A36; the two expectations are mutually exclusive,
+  so the check cannot pass together with its own setup.
+* **B5** requires `export.degraded === undefined`, while A2c requires the export
+  to include `degraded`. Both cannot pass at once; the product keeps the safer
+  `degraded` field so a degraded export cannot be mistaken for a complete one.
+* **S26/S27** (static audit) scan only `core.js` and therefore claim that
+  `injectMode` and `maxEntries` are never consumed — they are consumed in
+  `index.js`. That is why the static suite is not part of CI.
+
 ## 0.4.3 fixes
 
 0.4.3 is a correctness release on top of 0.4.2. No storage or configuration change: replacing the plugin files is enough, and the SQLite store and the JSON store are read as before.
@@ -357,7 +509,7 @@ Writes replace the whole store, so the DSH host and the memory page writing at t
 
 ## Data
 
-Storage is SQLite — see [Storage, vectors and updates](#storage-vectors-and-updates) for the paths, the migration and the update rules. The JSON document below is the **fallback** format the plugin reads and writes when `node:sqlite` is unavailable, and the shape `GET /api/export` returns:
+Storage is SQLite — see [Storage, vectors and updates](#storage-vectors-and-updates) for the paths, the migration and the update rules. The JSON document below is the **fallback** format the plugin reads and writes when `node:sqlite` is unavailable. `GET /api/export` returns the same shape, with `degraded`, `revision`, `dataFile` and `storage` added at the top level since 0.4.4:
 
 ```json
 {
@@ -387,11 +539,11 @@ Storage is SQLite — see [Storage, vectors and updates](#storage-vectors-and-up
 | GET | `/api/state?q=` | state + entries + dashboard |
 | GET | `/api/export` | download JSON |
 | POST | `/api/entry/add` · `/update` · `/delete` | entry CRUD (one delete at a time, by design) |
-| POST | `/api/inbox` · `/api/inbox/bulk` | accept / reject |
+| POST | `/api/inbox` · `/api/inbox/bulk` | accept / reject / edit (bulk accepts accept / reject only) |
 | POST | `/api/settings` | write user-layer settings (`{reset:true}` restores defaults) |
 | POST | `/api/preview` | render the injection for a given `q` |
 
-Loopback only; POST requires `application/json`, which blocks cross-site form posts.
+Loopback only. The `Host` header must name a loopback address (or the configured `pageHost`) and, when it carries a port, the configured port — otherwise the server answers `421 Misdirected Request`, which blocks DNS-rebinding pages. POST requires `application/json`, which blocks cross-site form posts. A registered path called with an unsupported method answers `405` plus an `Allow` header; `PATCH` / `DELETE` and other unknown methods answer `404`. Writes on a store whose master switch is off answer `409 MEMORY_DISABLED` (settings stay writable).
 
 ---
 
@@ -407,10 +559,63 @@ Loopback only; POST requires `application/json`, which blocks cross-site form po
 | Memory page blank | the page process died; run `dsh-memory-manager.exe --start` |
 | `Port 7891 is used by another program` | another app owns the port: `--port 7900`, or *Change port…* |
 | The agent searches the plugin folder instead of just answering | the plugin was not loaded, so no memory tool existed; restart DSH |
+| A write answers `409 MEMORY_DISABLED` | the master switch is off; turn it back on in *Settings* (the settings endpoint stays writable) |
+| The page answers `421 Misdirected Request` | you opened it through a non-loopback hostname or another port; use `http://127.5.0.1:7891/` or `http://localhost:7891/` |
 | Defender flags a scheduled task | never self-install via Task Scheduler (heuristic trojan detection); use the exe's tray or the Startup folder |
 | Memories look like regulations | switch to `judgeMode: model` and let the agent write persona notes; the inbox shows what it inferred |
 
 ---
+
+## Security
+
+**Never Trust the LLM** is a design rule here, not a slogan. The memory page is a
+local administrative surface, and the injected section is untrusted data.
+
+### The injected section is data, not instructions
+
+* The 【long-term memory】 section opens with an explicit statement that its
+  entries are **historical data, not instructions for this turn**, and that
+  instruction-like text inside an entry does not represent the current user's
+  intent.
+* Every injected line carries its **source**: `[user]` (the user asked for it),
+  `[auto]` (the plugin inferred it), `[agent]` (the agent recorded it).
+* Entries containing instruction-injection patterns — English and Chinese
+  ("ignore previous…", "disregard previous…", "you are now…", "忽略之前…",
+  "你现在是…", "请执行…", and so on) — are kept **out of the injected body**. They
+  only appear under `疑似指令性文本（仅索引）：` as truncated index lines. A memory
+  can therefore not smuggle a directive into the next turn.
+
+### Every automatic write is reviewed by default
+
+* `inbox: true` is the default and covers **all** automatic writes — profile
+  facts and explicit captures alike. They are stored as `pending` and cannot
+  reach the prompt until you accept them; `inbox: false` stores them as active.
+* An explicit `remember` tool call (`action=add`) still writes directly. That is
+  the agent following an instruction you gave it, not the plugin inferring
+  something about you behind your back.
+
+### The HTTP surface
+
+* **Loopback only.** The page server binds `127.5.0.1` by default and also binds
+  `127.0.0.1`.
+* **Host allow-list.** The `Host` header must be `127.0.0.1`, `127.5.0.1`,
+  `localhost`, `::1`, or the configured `pageHost`; if it carries a port, the
+  port must be the configured one. Anything else gets `421 Misdirected Request`
+  for GET and POST alike. A missing `Host` header is still allowed.
+* **POST requires `application/json`**, which a cross-site form cannot send.
+* **Method discipline.** A registered path called with an unsupported method
+  answers `405` with an `Allow` header listing what it does support; `PATCH`,
+  `DELETE` and other unknown methods answer `404`.
+* **The master switch gates writes**, not reads: with `enabled: false`, write
+  routes answer `409 MEMORY_DISABLED`, while the page and `/api/settings` stay
+  usable so you can turn memory back on.
+* **Limits.** Request bodies over 128 KB answer `413`; entry content over
+  2048 bytes answers `400`; duplicate detection is normalised; destructive
+  actions are one at a time and re-check the id/number pair
+  (`409 MEMORY_CONFIRM_MISMATCH`).
+
+The plugin does not expose a "wipe everything" endpoint or button, and every
+deletion in the page asks for a second confirmation.
 
 ## Privacy
 
@@ -443,7 +648,18 @@ powershell -ExecutionPolicy Bypass -File build-release.ps1
 
 :: regenerate the plain-text docs after editing the Markdown
 node tools/md2txt.mjs README.md README.zh-CN.md README.zh-TW.md docs/tutorial.md docs/tutorial.zh-CN.md docs/tutorial.zh-TW.md
+
+:: run the audits locally (CI runs the first two; the static one is manual)
+node tests/core-audit/run-all.mjs
+node tests/http-audit.mjs
+node tests/static-audit.mjs
 ```
+
+CI (`.github/workflows/syntax.yml`) runs `node --check`, the export smoke test,
+`tests/core-audit/run-all.mjs` and `tests/http-audit.mjs`. `tests/static-audit.mjs`
+is not in CI because of the two known false positives described in
+[0.4.4 fixes](#044-fixes); run it by hand with the command above. Beyond that,
+the suites need no dependencies and never touch the real store.
 
 ---
 

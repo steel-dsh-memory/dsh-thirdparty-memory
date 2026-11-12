@@ -1,0 +1,226 @@
+DSH Third-Party Long-Term Memory Plugin — Release 0.4.4
+=======================================================
+
+Released  : 2026-11-12
+Licence   : MIT
+Status    : unofficial third-party project, not affiliated with DeepSeek
+            or its official teams
+
+Scope
+-----
+Correctness, hardening and release-engineering release. No storage-format
+change, no configuration migration. Upgrading from 0.4.3 is a drop-in
+replacement of the plugin files: the SQLite store and the JSON store are read
+exactly as before, and an upgrade never touches the memory folder. The manager
+exe is rebuilt because its embedded sources changed and its Version string is
+now 0.4.4.
+
+Changes
+-------
+1. Server semantics.
+
+   * The master switch is a real gate. With enabled: false, every write route
+     (entry/add, entry/update, entry/delete, inbox, inbox/bulk) answers
+     409 MEMORY_DISABLED. /api/settings stays writable so the switch can be
+     turned back on, and GET /api/state, /api/export, /api/preview keep working.
+     The degraded-store 409 keeps its precedence.
+   * inbox/bulk validates action: accept / reject only, anything else 400.
+   * accept, reject and edit are three distinct operations: accept applies the
+     submitted fields and sets status active; reject only sets status rejected;
+     edit applies fields but keeps the current status; unknown actions 400.
+   * Inbox content length is checked before the mutation: over 2048 bytes
+     answers 400 and nothing is stored.
+   * Settings are checked before they are written: injectMode (relevant|all)
+     and showIndex (boolean) answer 400 with the current config echoed back for
+     anything else, before any mutation. judgeMode only accepts
+     model|rules|off, lang is normalised, and the numeric keys maxRelevant,
+     minScore, maxBytes, maxEntries, indexChars, perCluster, recallMaxBytes,
+     maxRecall only accept finite values > 0 (stored as integers). Values that
+     fail those rules are ignored rather than written — no half-written
+     settings.
+   * {reset: true} restores every default, including enabled, judgeMode, lang,
+     perCluster, recallMaxBytes and maxRecall.
+   * /api/export now also carries degraded, revision, dataFile and storage at
+     the top level.
+   * settings.overrides echoes the deployment layer through the same
+     OVERRIDABLE_CONFIG_KEYS allow-list the page writes (plus lang).
+   * A registered path called with an unsupported method answers 405 with an
+     Allow header; PATCH / DELETE and other unknown methods still answer 404.
+   * id and number are cross-checked on update / delete / inbox: a number that
+     now resolves to a different id answers 409 MEMORY_CONFIRM_MISMATCH
+     ("编号已变化，请刷新后重试") instead of changing the wrong memory.
+   * Duplicate detection is normalised (case, whitespace and punctuation are
+     ignored); the exact-equality behaviour elsewhere is unchanged.
+   * sameFile() compares Windows paths case-insensitively with normalised
+     separators, and other platforms case-sensitively with forward slashes.
+
+2. Security.
+
+   * The injected section now says explicitly that its entries are historical
+     data, not instructions for this turn, and that instruction-like text in an
+     entry does not represent the current user's intent.
+   * Every injected line carries its source: [user] / [auto] / [agent].
+   * Entries containing instruction-injection patterns (English and Chinese)
+     are kept out of the injected body. They only appear in the index-only
+     section titled 疑似指令性文本（仅索引）： as truncated lines.
+   * The review inbox covers all automatic writes by default: autoWriteStatus()
+     stores inferred notes (profile and explicit) as pending until accepted;
+     inbox: false stores them active. Explicit remember tool calls still write
+     directly (the agent following the user's instruction).
+   * Host allow-list on the page server: the Host header must name 127.0.0.1,
+     127.5.0.1, localhost, ::1 or the configured pageHost, with the configured
+     port when a port is present; anything else answers 421 Misdirected Request
+     for GET and POST. A missing Host header is still allowed.
+   * Write surface: loopback only; POST requires application/json; bodies over
+     128 KB answer 413; content over 2048 bytes answers 400; destructive
+     actions are one at a time and re-check the entry number.
+
+3. UI.
+
+   * Invalid numeric settings are refused in place: the row shows an error,
+     nothing is sent and no success toast appears.
+   * The 6-second refresh no longer overwrites unsaved settings (dirty/focused
+     form skips only the settings panel).
+   * Export failures show a toast instead of an unhandled rejection.
+   * A 720 px breakpoint folds the sidebar into a top bar and the grid into one
+     column; 360 px wide has no horizontal scroll.
+   * active / pending / rejected / archived go through the dictionary, with a
+     separate label and colour for archived in the list and the drawer.
+   * Category chip counts exclude pending entries exactly like the list.
+   * Update/delete/inbox requests send both id and number; 409
+     MEMORY_CONFIRM_MISMATCH reloads the page, 409 MEMORY_DISABLED shows
+     "记忆已关闭", 400 shows the server message and 404 keeps its old wording.
+     Inbox accept sends the full field set; edit stays edit.
+
+4. Engine and rendering.
+
+   * autoWriteStatus() is the single inbox decision point (see Security).
+   * entriesForAllMode() drops ephemeral entries that belong to other sessions
+     and keeps the current session's ephemeral entries, so injectMode: all no
+     longer leaks another conversation's scratch notes.
+   * pluginBuildId() falls back to unknown-<timestamp base36> (different per
+     process) when the source hash cannot be computed.
+   * The detached page process is replaced on upgrade: the new process probes
+     /api/health, compares the build identity and only then retires the old one.
+   * A failed JSON -> SQLite migration no longer leaves a half-created empty
+     database behind; the next read stays degraded (read-only).
+   * The backend cache key includes the legacy source path, so storageInfo()
+     before the first loadStore() cannot skip the migration permanently.
+   * renderInjection() no longer prints an empty section header; budget and
+     omission logic unchanged. storageInfo() reports expired entries and
+     parseTags() de-duplicates tags.
+
+5. Release engineering.
+
+   * attach.ps1 is back in the repository (canonical copy, no machine-specific
+     paths) and the READMEs describe exactly the flags it supports.
+   * dsh-memory-manager.exe is distributed through GitHub Releases, not
+     committed; it is an unsigned single file and build-single-exe.ps1 rebuilds
+     it from source. The stale npm "files" entry was removed.
+   * manager/DshMemoryManager.cs is now the 0.4.3-era source (default store in
+     %APPDATA%, legacy-folder detection, remembers the last store) with
+     Version = "0.4.4"; the stale 0.4.0 copy is gone.
+   * CI (.github/workflows/syntax.yml) keeps node --check and the export smoke
+     test and adds tests/core-audit/run-all.mjs and tests/http-audit.mjs with
+     gates. tests/static-audit.mjs stays manual (known false positives).
+   * package.json version is 0.4.4; the files list matches the repository.
+   * One address everywhere: default 127.5.0.1:7891, also bound on 127.0.0.1,
+     so both http://127.5.0.1:7891/ and http://localhost:7891/ work.
+
+Verification performed on Windows, Node 24.21.0 (node:sqlite available)
+------------------------------------------------------------------------
+- core-audit: 12 files, 220/220 checks green (CRUD, numbering, TTL, migration,
+  backup retention, degraded states, concurrency, WAL)
+- http-audit: 65/67 on an isolated store and port. The 2 remaining reds are
+  contradictions inside the audit script itself:
+    A37  expects inbox/bulk accept to report touched = 3 while also relying on
+         pending entries left by A19/A36; the two expectations are mutually
+         exclusive.
+    B5   requires export.degraded === undefined, while A2c requires the export
+         to include degraded. Both cannot pass at once; the product keeps the
+         safer degraded field.
+- static-audit: 25/27 by hand. The 2 remaining reds are known false positives:
+  S26/S27 scan only core.js and claim injectMode / maxEntries are never
+  consumed — they are consumed in index.js. This suite is deliberately not in
+  CI.
+- regression-0.4.4.mjs: green (acceptance cases written for this batch).
+- The real store was not touched by any suite.
+
+Upgrade
+-------
+1. Replace the plugin files (or unpack the new manager exe). Keep your data
+   folder as-is — the upgrade swaps code only and never overwrites, migrates,
+   renames or deletes a memory file.
+2. Re-run the installer: attach.ps1 -Repair, then attach.ps1 (or the exe's
+   "Attach to DSH…").
+3. Restart DSH. The old memory page process is replaced automatically on the
+   next start.
+4. The exe is unsigned; Windows SmartScreen may warn. Build it yourself with
+   build-single-exe.ps1 if you prefer to compile the source.
+
+Known limits
+------------
+- A37 and B5 are test-side contradictions, not product defects (see above).
+  They are documented so that a 65/67 result is not mistaken for a regression.
+- S26/S27 are false positives of the static audit; it is run manually and its
+  25/27 result is expected.
+- judgeMode is still a configuration label only: model / rules / off all run
+  the same rule-based extraction when autoExtract is on. Documented, not
+  changed in 0.4.4.
+- The JSON fallback path (runtimes without node:sqlite) still has no revision
+  lock, so two writers can overwrite each other there.
+- Corruption is detected when a process opens the store, not while a handle is
+  already open.
+- WAL checkpoint after commit can be skipped if another connection is reading
+  at that moment (busy, not an error). Data is never lost; the single-file
+  backup property holds at the last successful checkpoint.
+- Retrieval is literal matching (CJK n-grams plus local hash vectors), not
+  synonym-level semantics; the "extract everything about X" phrase pattern is
+  Chinese-only.
+- The manager exe is unsigned; SmartScreen warnings are expected.
+
+Files
+-----
+core.js  index.js  server.js  ui.html  package.json  cordis.patch.yml
+attach.ps1  README (three languages, .md + .txt)  docs/tutorial (three languages)
+RELEASE-0.4.4.txt  build-single-exe.ps1  build-release.ps1
+manager/DshMemoryManager.cs  dsh-memory-manager.exe
+
+中文补充
+--------
+本版是 0.4.3 之后的 0.4.4 修复批次：服务端语义、安全、UI、引擎与发布工程五组
+问题一起修。不改存储格式、不改配置、不需要迁移；从 0.4.3 升级就是替换插件
+文件（exe 从 Releases 取），记忆目录一个字节都不会被碰。
+
+主要修复：
+  * 总开关闸门：关闭时所有写接口 409 MEMORY_DISABLED，设置接口保持可写。
+  * inbox：accept / reject / edit 三种语义分开；bulk 校验 action；内容超过
+    2048 字节在写入前就拒绝。
+  * settings：写入前校验；非法 injectMode / showIndex 返回 400 并回显当前配置，
+    judgeMode / lang / 数值键不合法则忽略不写；reset 恢复全部默认。
+  * export 补 degraded / revision / dataFile / storage；overrides 回显部署值。
+  * 已注册路径方法用错 → 405 + Allow；PATCH/DELETE 仍 404。
+  * id 与 number 互相核对，编号漂移 → 409 MEMORY_CONFIRM_MISMATCH。
+  * 去重改归一化比较；sameFile 分平台。
+  * 安全：注入段声明「数据不是指令」、每条带来源、指令性文本只进索引；
+    默认所有自动写入进收件箱；Host 白名单（不匹配 421）；POST 必须 JSON。
+  * injectMode=all 不再泄漏其它会话的 ephemeral；buildId 失败回退；升级替换
+    旧记忆页进程；迁移失败不留半个空库。
+  * UI：非法设置就地报错、轮询不覆盖未保存设置、导出失败提示、720px 断点、
+    状态国际化（含 archived）、chip 计数与列表同口径、对接新的 409/400 语义。
+  * 发布工程：attach.ps1 回仓库；exe 走 Releases（unsigned）；管理器源码与
+    二进制对齐（0.4.4）；CI 跑 core-audit + http-audit；地址统一为
+    127.5.0.1:7891（同时监听 127.0.0.1）。
+
+验证（Windows 10/11 + Node 24.21.0，隔离库与端口，真实库未受影响）：
+  core-audit 12 个文件 220 项全绿；http-audit 65/67（A37、B5 为审计脚本自身
+  矛盾）；static-audit 25/27（S26/S27 已知误报，手动运行）；regression-0.4.4
+  全绿。
+
+升级：替换插件文件 / 解压新 exe → 跑 attach.ps1 -Repair 与 attach.ps1 →
+重启 DSH。旧的记忆页进程会在下次启动时被自动替换。
+
+已知限制：A37/B5 是测试侧矛盾、不是产品缺陷；S26/S27 是静态审计误报；
+judgeMode 仍只是配置标签（model / rules / off 在 autoExtract 打开时都走同一套
+规则提取，0.4.4 未改）；JSON 回退路径没有 revision 锁；检索是字面匹配而非
+同义词语义；exe 未签名，SmartScreen 提示属正常。

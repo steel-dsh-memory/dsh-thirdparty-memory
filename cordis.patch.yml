@@ -19,6 +19,11 @@
         # rules = zero-token regex fallback · off = never auto-record
         judgeMode: model
         autoExtract: true
+        # All automatic writes (profile facts AND explicit "remember this") land in the
+        # inbox as pending and are not injected until the user approves them.
+        # inbox: false makes automatic writes active immediately.
+        # 所有自动写入先进收件箱待审批；inbox: false 才直接生效。
+        # （remember 工具是 agent 显式调用，不受此开关影响。）
         inbox: true
         injectMode: relevant
         maxBytes: 8192

@@ -94,7 +94,33 @@
   .modal pre { margin:0; padding:16px 18px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; line-height:1.65; }
   .toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(80px); background:#1c1c1f; color:#fff; padding:9px 17px; border-radius:999px; font-size:13px; opacity:0; transition:.2s; pointer-events:none; z-index:40; }
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .state { font-size:11px; padding:0 7px; border-radius:999px; background:var(--chip); color:var(--muted); white-space:nowrap; }
+  .state.st-active { color:var(--ok); background:color-mix(in srgb,var(--ok) 14%,transparent); }
+  .state.st-pending { color:var(--warn); background:color-mix(in srgb,var(--warn) 18%,transparent); }
+  .state.st-rejected { color:var(--danger); background:color-mix(in srgb,var(--danger) 14%,transparent); }
+  .state.st-archived { color:#70707c; background:color-mix(in srgb,#70707c 22%,transparent); }
+  .field .err { font-size:12px; color:var(--danger); }
+  .field .err:empty { display:none; }
+  input[aria-invalid="true"] { border-color:var(--danger); }
   .hidden { display:none !important; }
+  /* 0.4.4：窄屏断点 —— 224px 侧栏折成顶部栏、grid 单列，360px 宽不出现横向滚动。 */
+  @media (max-width: 720px) {
+    .app { grid-template-columns:minmax(0,1fr); }
+    .nav { flex-direction:row; flex-wrap:wrap; align-items:center; border-right:none; border-bottom:1px solid var(--line); padding:10px 12px; }
+    .brand { padding:2px 8px 2px 0; }
+    .nav button { width:auto; padding:8px 9px; }
+    .nav .grow { flex:0 0 auto; }
+    .navfoot { flex:1 1 100%; margin-top:6px; padding:6px 0 0; }
+    main { padding:14px 12px 44px; }
+    .top { flex-wrap:wrap; }
+    .top input[type="search"] { flex:1 1 100%; }
+    .top .btn { flex:1 1 auto; }
+    .fields { grid-template-columns:minmax(0,1fr); }
+    .item { flex-wrap:wrap; }
+    .item .acts { margin-left:auto; }
+    .drawer { width:100vw; }
+    .modal { padding:10px; }
+  }
 </style>
 </head>
 <body>
@@ -177,10 +203,10 @@
           <label class="field"><span data-i18n="settings.mode">Injection mode</span>
             <select id="set-mode"><option value="relevant" data-i18n="settings.modeRelevant"></option><option value="all" data-i18n="settings.modeAll"></option></select>
           </label>
-          <label class="field"><span>maxBytes</span><input type="number" id="set-maxbytes" min="256" step="256"></label>
-          <label class="field"><span>minScore</span><input type="number" id="set-minscore" min="1" step="1"></label>
-          <label class="field"><span>maxRelevant</span><input type="number" id="set-maxrelevant" min="1" step="1"></label>
-          <label class="field"><span>indexChars</span><input type="number" id="set-indexchars" min="4" step="1"></label>
+          <label class="field"><span>maxBytes</span><input type="number" id="set-maxbytes" min="256" step="256"><span class="err" id="err-maxbytes"></span></label>
+          <label class="field"><span>minScore</span><input type="number" id="set-minscore" min="1" step="1"><span class="err" id="err-minscore"></span></label>
+          <label class="field"><span>maxRelevant</span><input type="number" id="set-maxrelevant" min="1" step="1"><span class="err" id="err-maxrelevant"></span></label>
+          <label class="field"><span>indexChars</span><input type="number" id="set-indexchars" min="4" step="1"><span class="err" id="err-indexchars"></span></label>
           <label class="field"><span data-i18n="settings.project">Current project (currentProject)</span><input type="text" id="set-project"></label>
         </div>
         <div style="display:flex;gap:9px;margin-top:14px">
@@ -219,6 +245,7 @@
   <header>
     <strong id="drawer-title" data-i18n="drawer.title">Memory workbench</strong>
     <span class="mono" id="drawer-id"></span>
+    <span class="state" id="dw-status"></span>
     <span style="flex:1"></span>
     <button class="btn ghost" id="drawer-close" data-i18n="drawer.close">Close</button>
   </header>
@@ -398,6 +425,7 @@ const DICT = {
   "settings.project": { en: "Current project (currentProject)", "zh-CN": "当前项目 currentProject", "zh-TW": "目前專案 currentProject" },
   "settings.save": { en: "Save", "zh-CN": "保存", "zh-TW": "儲存" },
   "settings.reset": { en: "Reset to defaults", "zh-CN": "恢复默认", "zh-TW": "回復預設" },
+  "settings.invalidNumber": { en: "Enter a number greater than 0", "zh-CN": "请输入大于 0 的数字", "zh-TW": "請輸入大於 0 的數字" },
   "settings.language": { en: "Language", "zh-CN": "界面语言", "zh-TW": "介面語言" },
   "settings.languageHint": {
     en: "Chosen during installation; you can switch any time.",
@@ -439,8 +467,10 @@ const DICT = {
   "ttl.d30": { en: "Expires in 30 days", "zh-CN": "30 天后过期", "zh-TW": "30 天後過期" },
   "ttl.d90": { en: "Expires in 90 days", "zh-CN": "90 天后过期", "zh-TW": "90 天後過期" },
   "ttl.clear": { en: "Clear expiry", "zh-CN": "清除到期时间", "zh-TW": "清除到期時間" },
+  "status.active": { en: "Active", "zh-CN": "生效中", "zh-TW": "生效中" },
   "status.pending": { en: "To review", "zh-CN": "待审批", "zh-TW": "待審核" },
   "status.rejected": { en: "Rejected", "zh-CN": "已拒绝", "zh-TW": "已拒絕" },
+  "status.archived": { en: "Archived", "zh-CN": "已归档", "zh-TW": "已封存" },
   "src.auto": { en: "auto", "zh-CN": "自动提取", "zh-TW": "自動擷取" },
   "src.user": { en: "manual", "zh-CN": "手动添加", "zh-TW": "手動新增" },
   "src.agent": { en: "by agent", "zh-CN": "agent 记的", "zh-TW": "agent 記的" },
@@ -474,6 +504,9 @@ const DICT = {
   "toast.settingsSaved": { en: "Settings saved", "zh-CN": "设置已保存", "zh-TW": "設定已儲存" },
   "toast.reset": { en: "Reset to defaults", "zh-CN": "已恢复默认", "zh-TW": "已回復預設" },
   "toast.exported": { en: "Exported", "zh-CN": "已导出", "zh-TW": "已匯出" },
+  "toast.exportFail": { en: "Export failed: {e}", "zh-CN": "导出失败：{e}", "zh-TW": "匯出失敗：{e}" },
+  "toast.confirmMismatch": { en: "Numbering changed — refreshed", "zh-CN": "编号已变化，已刷新", "zh-TW": "編號已變化，已重新整理" },
+  "toast.memoryDisabled": { en: "Memory is disabled — turn it back on in Settings", "zh-CN": "记忆已关闭，请在设置里重新开启", "zh-TW": "記憶已關閉，請在設定裡重新開啟" },
   "toast.readFail": { en: "Load failed: {e}", "zh-CN": "读取失败：{e}", "zh-TW": "讀取失敗：{e}" },
   "toast.pinned": { en: "Pinned as always-on", "zh-CN": "已设为常驻", "zh-TW": "已設為常駐" },
   "toast.unpinned": { en: "Removed from always-on", "zh-CN": "已取消常驻", "zh-TW": "已取消常駐" },
@@ -518,7 +551,9 @@ let view = "hub"
 let filter = "all"
 let query = ""
 let drawerId = null
+let drawerNumber = null
 let busy = false
+let settingsDirty = false
 
 function toast(message) {
   const el = $("toast")
@@ -529,6 +564,30 @@ function toast(message) {
 }
 
 const fmtDate = (iso) => (iso ? String(iso).slice(0, 10) : "")
+
+const isPending = (entry) => entry.status === "pending"
+
+/** 状态标签走 i18n（active/pending/rejected/archived），未知状态回落原值。 */
+function statusLabel(status) {
+  if (!status) return ""
+  return DICT["status." + status] ? t("status." + status) : String(status)
+}
+
+/** settings 表单是否有未保存输入：dirty 标记，或焦点停在表单的可编辑控件里。 */
+function settings_form_editing() {
+  if (settingsDirty) return true
+  const active = document.activeElement
+  if (!active) return false
+  const tag = String(active.tagName || "").toUpperCase()
+  if (tag !== "INPUT" && tag !== "SELECT" && tag !== "TEXTAREA") return false
+  return $("view-settings").contains(active)
+}
+
+/** 清掉设置页数字输入的就地错误提示。 */
+function clearSettingsErrors() {
+  for (const id of ["set-maxbytes", "set-minscore", "set-maxrelevant", "set-indexchars"]) $(id).removeAttribute("aria-invalid")
+  for (const id of ["err-maxbytes", "err-minscore", "err-maxrelevant", "err-indexchars"]) $(id).textContent = ""
+}
 
 /** Two-step confirmation: a click, then typing the word. Every destructive action uses it. */
 function confirmTwice(question, word) {
@@ -541,18 +600,38 @@ async function api(path, body) {
   const options = body === undefined ? undefined : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
   const response = await fetch(path, options)
   const value = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(value.error || "HTTP " + response.status)
+  if (!response.ok) {
+    const error = new Error(value.error || "HTTP " + response.status)
+    error.code = typeof value.code === "string" ? value.code : ""
+    error.status = response.status
+    throw error
+  }
   return value
 }
 
-async function load() {
+/** 0.4.4 服务端新错误码：编号漂移 409、总开关关闭 409；其余（400/404/网络）显示服务端/原始文案。 */
+function reportError(error) {
+  if (error && error.code === "MEMORY_CONFIRM_MISMATCH") {
+    toast(t("toast.confirmMismatch"))
+    load()
+    return
+  }
+  if (error && error.code === "MEMORY_DISABLED") {
+    toast(t("toast.memoryDisabled"))
+    load()
+    return
+  }
+  toast(error && error.message ? error.message : String(error))
+}
+
+async function load(options) {
   try {
     const params = new URLSearchParams()
     if (query.trim().length > 0) params.set("q", query.trim())
     state = await api("/api/state" + (params.toString() ? "?" + params : ""))
     const next = LANGS.includes(state.lang) ? state.lang : LANG
     if (next !== LANG) { LANG = next; applyStaticText() }
-    render()
+    render(options)
   } catch (error) {
     toast(t("toast.readFail", { e: error.message }))
   }
@@ -567,14 +646,14 @@ async function mutate(fn, successKey) {
     else await load()
     if (successKey) toast(t(successKey))
   } catch (error) {
-    toast(error.message)
+    reportError(error)
   } finally {
     busy = false
     render()
   }
 }
 
-function render() {
+function render(options) {
   if (!state) return
   const entries = state.entries
   const pending = entries.filter((entry) => entry.status === "pending")
@@ -597,7 +676,9 @@ function render() {
   renderInbox(pending)
   renderDashboard()
   renderSearch()
-  renderSettings()
+  // 0.4.4：轮询/局部刷新不得覆盖设置页未保存的输入，其它区域照旧重渲染。
+  const keepSettings = Boolean(options && options.keepSettings) || settings_form_editing()
+  if (!keepSettings) renderSettings()
   if (drawerId && !entries.some((entry) => entry.id === drawerId)) closeDrawer()
 }
 
@@ -605,23 +686,23 @@ function visibleEntries() {
   let list = state.entries
   if (filter === "inbox") list = list.filter((entry) => entry.status === "pending")
   else if (filter === "expired") list = list.filter((entry) => entry.expiresAt && Date.parse(entry.expiresAt) <= Date.now())
-  else if (filter !== "all") list = list.filter((entry) => entry.category === filter && entry.status !== "pending")
+  else if (filter !== "all") list = list.filter((entry) => entry.category === filter && !isPending(entry))
   const needle = query.trim().toLowerCase()
   if (needle.length > 0) list = list.filter((entry) => [entry.content, entry.project, entry.tags.join(" ")].join(" ").toLowerCase().includes(needle))
   return list
 }
 
 function renderChips() {
-  const counts = state.dashboard.counts
+  const inCategory = (category) => state.entries.filter((entry) => entry.category === category && !isPending(entry)).length
   const chips = [
     ["all", t("chips.all"), state.entries.length],
-    ["global", t("cat.global"), counts.global],
-    ["project", t("cat.project"), counts.project],
-    ["persona", t("cat.persona"), counts.persona],
-    ["ephemeral", t("cat.ephemeral"), counts.ephemeral],
-    ["general", t("cat.general"), counts.general],
-    ["inbox", t("chips.inbox"), state.dashboard.pending],
-    ["expired", t("chips.expired"), state.dashboard.expired],
+    ["global", t("cat.global"), inCategory("global")],
+    ["project", t("cat.project"), inCategory("project")],
+    ["persona", t("cat.persona"), inCategory("persona")],
+    ["ephemeral", t("cat.ephemeral"), inCategory("ephemeral")],
+    ["general", t("cat.general"), inCategory("general")],
+    ["inbox", t("chips.inbox"), state.entries.filter(isPending).length],
+    ["expired", t("chips.expired"), state.entries.filter((entry) => entry.expiresAt && Date.parse(entry.expiresAt) <= Date.now()).length],
   ]
   $("chips").innerHTML = ""
   for (const [key, label, count] of chips) {
@@ -656,14 +737,14 @@ function entryCard(entry, options) {
   bits.push(t("cat." + (entry.category || "general")))
   if (entry.priority !== "medium") bits.push(t("prio." + entry.priority).split(" · ")[0])
   if (entry.project) bits.push("📁 " + entry.project)
-  if (entry.status === "pending") bits.push(t("status.pending"))
-  if (entry.status === "rejected") bits.push(t("status.rejected"))
+  if (entry.status && entry.status !== "active") bits.push({ text: statusLabel(entry.status), cls: "state st-" + entry.status })
   if (entry.expiresAt) bits.push(t("meta.expires", { d: fmtDate(entry.expiresAt) }))
   bits.push(t("src." + (entry.source || "agent")))
   bits.push(fmtDate(entry.createdAt))
   for (const bit of bits) {
     const span = document.createElement("span")
-    span.textContent = bit
+    if (typeof bit === "string") span.textContent = bit
+    else { span.className = bit.cls; span.textContent = bit.text }
     info.append(span)
   }
   for (const tag of entry.tags) {
@@ -679,7 +760,17 @@ function entryCard(entry, options) {
   if (inbox) {
     const accept = document.createElement("button")
     accept.textContent = t("drawer.accept")
-    accept.onclick = () => mutate(() => api("/api/inbox", { id: entry.id, action: "accept" }), "toast.accepted")
+    // 0.4.4：accept 带上完整字段（服务端 accept 分支会应用这些覆盖），并同时带 id + number 防编号漂移。
+    accept.onclick = () => mutate(() => api("/api/inbox", {
+      id: entry.id,
+      number: entry.number,
+      action: "accept",
+      content: entry.content,
+      category: entry.category,
+      priority: entry.priority,
+      project: entry.project,
+      tags: entry.tags.join(", "),
+    }), "toast.accepted")
     const edit = document.createElement("button")
     edit.textContent = t("drawer.edit")
     edit.onclick = () => openDrawer(entry.id)
@@ -687,21 +778,21 @@ function entryCard(entry, options) {
     reject.textContent = t("drawer.delete")
     reject.onclick = () => {
       if (!confirmTwice(t("confirm.rejectQ"), t("confirm.rejectWord"))) return
-      mutate(() => api("/api/inbox", { id: entry.id, action: "reject" }), "toast.rejected")
+      mutate(() => api("/api/inbox", { id: entry.id, number: entry.number, action: "reject" }), "toast.rejected")
     }
     acts.append(accept, edit, reject)
   } else {
     const pin = document.createElement("button")
     pin.textContent = entry.category === "global" ? t("btn.unpin") : t("btn.pin")
     pin.onclick = () => mutate(
-      () => api("/api/entry/update", { id: entry.id, category: entry.category === "global" ? "general" : "global" }),
+      () => api("/api/entry/update", { id: entry.id, number: entry.number, category: entry.category === "global" ? "general" : "global" }),
       entry.category === "global" ? "toast.unpinned" : "toast.pinned",
     )
     const del = document.createElement("button")
     del.textContent = t("btn.delete")
     del.onclick = () => {
       if (!confirmTwice(t("confirm.deleteQ"), t("confirm.deleteWord"))) return
-      mutate(() => api("/api/entry/delete", { id: entry.id, confirm: true }), "toast.deleted")
+      mutate(() => api("/api/entry/delete", { id: entry.id, number: entry.number, confirm: true }), "toast.deleted")
     }
     acts.append(pin, del)
   }
@@ -780,6 +871,7 @@ function renderSearch() {
 
 function renderSettings() {
   const { config, settings } = state
+  clearSettingsErrors()
   $("set-enabled").checked = settings.enabled !== false
   $("set-enabled").disabled = !config.enabled
   $("set-autoextract").checked = settings.autoExtract !== false
@@ -800,8 +892,14 @@ function openDrawer(id) {
   const entry = state.entries.find((item) => item.id === id)
   if (!entry) return
   drawerId = id
+  drawerNumber = Number.isSafeInteger(entry.number) ? entry.number : null
   $("drawer-title").textContent = t("cat." + (entry.category || "general"))
   $("drawer-id").textContent = "#" + entry.number + " · " + entry.id
+  const statusEl = $("dw-status")
+  if (statusEl) {
+    statusEl.className = "state st-" + (entry.status || "active")
+    statusEl.textContent = statusLabel(entry.status || "active")
+  }
   $("dw-content").value = entry.content
   $("dw-category").value = entry.category
   $("dw-priority").value = entry.priority
@@ -810,24 +908,26 @@ function openDrawer(id) {
   $("dw-ttl").value = ""
   $("dw-facts").textContent = [
     t("meta.source") + " " + t("src." + (entry.source || "agent")),
-    t("meta.status") + " " + entry.status,
+    t("meta.status") + " " + statusLabel(entry.status),
     t("meta.created", { d: fmtDate(entry.createdAt) }),
     t("meta.updated", { d: fmtDate(entry.updatedAt) }),
     entry.expiresAt ? t("meta.expires", { d: fmtDate(entry.expiresAt) }) : t("meta.permanent"),
   ].join(" · ")
-  $("dw-pending").classList.toggle("hidden", entry.status !== "pending")
-  $("dw-accept").classList.toggle("hidden", entry.status !== "pending")
+  $("dw-pending").classList.toggle("hidden", !isPending(entry))
+  $("dw-accept").classList.toggle("hidden", !isPending(entry))
   $("drawer").dataset.open = "true"
 }
 
 function closeDrawer() {
   drawerId = null
+  drawerNumber = null
   $("drawer").dataset.open = "false"
 }
 
 function drawerPayload() {
   const ttl = $("dw-ttl").value
   const payload = { id: drawerId, content: $("dw-content").value, category: $("dw-category").value, priority: $("dw-priority").value, project: $("dw-project").value, tags: $("dw-tags").value }
+  if (drawerNumber !== null) payload.number = drawerNumber
   if (ttl === "clear") payload.clearExpiry = true
   else if (ttl.length > 0) payload.ttlDays = Number(ttl)
   return payload
@@ -847,7 +947,7 @@ $("btn-preview").onclick = async () => {
     $("modal-text").textContent = result.text || "—"
     $("modal-stat").textContent = result.tokens + " tok / " + result.bytes + " B · max " + result.maxBytes + " B"
     $("modal").dataset.open = "true"
-  } catch (error) { toast(error.message) }
+  } catch (error) { reportError(error) }
 }
 $("modal-close").onclick = () => { $("modal").dataset.open = "false" }
 $("drawer-close").onclick = closeDrawer
@@ -856,7 +956,17 @@ document.addEventListener("keydown", (event) => {
   $("modal").dataset.open = "false"
   closeDrawer()
 })
-$("dw-save").onclick = () => mutate(() => api("/api/entry/update", drawerPayload()), "toast.saved")
+$("dw-save").onclick = () => {
+  // 0.4.4：待审条目在抽屉里改完保存走 inbox action=edit（保留 pending，不被当成 accept）。
+  const entry = state && state.entries.find((item) => item.id === drawerId)
+  const pending = Boolean(entry && entry.status === "pending")
+  mutate(() => {
+    const payload = drawerPayload()
+    if (!pending) return api("/api/entry/update", payload)
+    payload.action = "edit"
+    return api("/api/inbox", payload)
+  }, "toast.saved")
+}
 $("dw-accept").onclick = () => mutate(async () => {
   const payload = drawerPayload()
   payload.action = "accept"
@@ -867,7 +977,9 @@ $("dw-accept").onclick = () => mutate(async () => {
 $("dw-delete").onclick = () => {
   if (!confirmTwice(t("confirm.deleteQ"), t("confirm.deleteWord"))) return
   mutate(async () => {
-    const result = await api("/api/entry/delete", { id: drawerId, confirm: true })
+    const payload = { id: drawerId, confirm: true }
+    if (drawerNumber !== null) payload.number = drawerNumber
+    const result = await api("/api/entry/delete", payload)
     closeDrawer()
     return result
   }, "toast.deleted")
@@ -895,32 +1007,64 @@ $("set-lang").onchange = async (event) => {
     applyStaticText()
     render()
     toast(t("toast.saved"))
-  } catch (error) { toast(error.message) }
+  } catch (error) { reportError(error) }
 }
-$("btn-save-settings").onclick = () => mutate(() => api("/api/settings", {
-  injectMode: $("set-mode").value,
-  maxBytes: Number($("set-maxbytes").value),
-  minScore: Number($("set-minscore").value),
-  maxRelevant: Number($("set-maxrelevant").value),
-  indexChars: Number($("set-indexchars").value),
-  currentProject: $("set-project").value,
-}), "toast.settingsSaved")
-$("btn-reset-settings").onclick = () => mutate(() => api("/api/settings", { reset: true }), "toast.reset")
+// 0.4.4：设置页这些输入不是即时保存，改动后打 dirty 标记，轮询不得覆盖。
+for (const id of ["set-mode", "set-maxbytes", "set-minscore", "set-maxrelevant", "set-indexchars", "set-project"]) {
+  $(id).addEventListener("input", () => { settingsDirty = true })
+  $(id).addEventListener("change", () => { settingsDirty = true })
+}
+$("btn-save-settings").onclick = () => {
+  // 0.4.4：先做数字校验（空串 Number("")=0 会被服务端忽略，旧版仍弹“设置已保存”）。
+  const numeric = [
+    ["set-maxbytes", "maxBytes", "err-maxbytes"],
+    ["set-minscore", "minScore", "err-minscore"],
+    ["set-maxrelevant", "maxRelevant", "err-maxrelevant"],
+    ["set-indexchars", "indexChars", "err-indexchars"],
+  ]
+  const payload = { injectMode: $("set-mode").value, currentProject: $("set-project").value }
+  let invalid = 0
+  for (const [inputId, key, errId] of numeric) {
+    const input = $(inputId)
+    const raw = input.value.trim()
+    const value = Number(raw)
+    const valid = raw.length > 0 && Number.isFinite(value) && value > 0
+    input.setAttribute("aria-invalid", String(!valid))
+    $(errId).textContent = valid ? "" : t("settings.invalidNumber")
+    if (valid) payload[key] = value
+    else invalid += 1
+  }
+  if (invalid > 0) return
+  mutate(async () => {
+    const result = await api("/api/settings", payload)
+    settingsDirty = false
+    return result
+  }, "toast.settingsSaved")
+}
+$("btn-reset-settings").onclick = () => mutate(async () => {
+  const result = await api("/api/settings", { reset: true })
+  settingsDirty = false
+  return result
+}, "toast.reset")
 $("btn-export").onclick = async () => {
-  const data = await api("/api/export")
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
-  const link = document.createElement("a")
-  link.href = URL.createObjectURL(blob)
-  link.download = "dsh-memory-export.json"
-  link.click()
-  URL.revokeObjectURL(link.href)
-  toast(t("toast.exported"))
+  try {
+    const data = await api("/api/export")
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "dsh-memory-export.json"
+    link.click()
+    URL.revokeObjectURL(link.href)
+    toast(t("toast.exported"))
+  } catch (error) {
+    toast(t("toast.exportFail", { e: error.message }))
+  }
 }
 
 LANG = LANGS.includes(window.__DSH_MEMORY_LANG__) ? window.__DSH_MEMORY_LANG__ : "en"
 applyStaticText()
 load()
-setInterval(() => { if (document.visibilityState === "visible" && !busy && drawerId === null) load() }, 6000)
+setInterval(() => { if (document.visibilityState === "visible" && !busy && drawerId === null) load({ keepSettings: settings_form_editing() }) }, 6000)
 </script>
 </body>
 </html>

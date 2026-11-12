@@ -23,9 +23,11 @@ import {
   CATEGORIES,
   MAX_CONTENT_BYTES,
   PRIORITIES,
+  autoWriteStatus,
   byteLength,
   dashboard,
   defaultDataFile,
+  entriesForAllMode,
   expiresFrom,
   extractCandidates,
   loadStore,
@@ -190,7 +192,12 @@ export function apply(ctx, config) {
     return store.entries[index - 1]
   }
 
-  /** 自动提取落盘：画像进 persona（收件箱待审），明确的"记住"直接生效。 */
+  /**
+   * 自动提取落盘：画像进 persona。
+   * v0.4.4（#23）：状态不再由这里的 scope 判断，统一交给 core.autoWriteStatus ——
+   * 收件箱开（默认）时**所有**自动写入都是 pending，只有 inbox: false 才直接 active。
+   * remember 工具（agent 显式调用）不走这条路径，仍然直接生效。
+   */
   function captureAuto(text) {
     const candidates = extractCandidates(text)
     if (candidates.length === 0) return
@@ -210,7 +217,7 @@ export function apply(ctx, config) {
               priority: "medium",
               tags: [],
               source: "auto",
-              status: isProfile && config.inbox ? "pending" : "active",
+              status: autoWriteStatus(candidate, config),
               expiresAt: null,
               sessionId: "",
               createdAt: stamp,
@@ -295,11 +302,9 @@ export function apply(ctx, config) {
       const { query, sessionId } = turnContext(assembleContext)
       if (String(effectiveConfig.injectMode) === "all") {
         const forced = { ...effectiveConfig, minScore: 0, maxRelevant: effectiveConfig.maxEntries }
-        const normalized = {
-          ...store,
-          entries: store.entries.map((entry) => ({ ...entry, category: entry.category === "ephemeral" ? "general" : entry.category })),
-        }
-        return renderInjection(normalized, { query, sessionId, config: forced }).text
+        // v0.4.4（#12）：其它会话的 ephemeral 不得跟着 all 模式泄漏进来；
+        // 本会话的 ephemeral 保持原类别（不再改写成 general）并进正文。
+        return renderInjection(entriesForAllMode(store, sessionId), { query, sessionId, config: forced }).text
       }
       return renderInjection(store, { query, sessionId, config: effectiveConfig }).text
     },

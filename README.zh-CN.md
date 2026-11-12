@@ -20,7 +20,7 @@
 > - 数据存储：单个 SQLite 文件，永不上云。卸载 / 更换模型？带走文件，你的记忆就永生。
 
 ```
-版本     : 0.4.3（2026-11-10）· MIT · 非官方
+版本     : 0.4.4（2026-11-12）· MIT · 非官方
 支持平台 : DSH Desktop（MSIX）· DeepSeek Harness 便携版（Electron）· 命令行 `dsh web`
 运行环境 : Node.js 18+（exe 自带 Node 24；SQLite 存储需要 `node:sqlite`，即 Node 22.5+）
 存储方式 : 本地 SQLite（`node:sqlite` 内置，WAL 模式）—— 无服务端、无云端、无遥测
@@ -46,13 +46,13 @@ dsh-thirdparty-memory 走中间那条路：记忆先**分类**，注入前先**�
 | **关键词相关注入** | 只有和当前消息匹配的条目进提示词，其余压缩成编号索引。典型情况：无关提问时 6.5 KB → 1.2 KB。 |
 | **多话题覆盖** | 一句话里提了好几件事时，每个话题各自分到代表条目，避免一个热门话题吃掉全部预算。 |
 | **显式提取** | 说「把所有关于 X 的记忆都提取出来」即关闭相关性阈值、放宽预算，整批返回。 |
-| **审阅收件箱** | 自动提取的画像类记忆先待在收件箱，你点通过之后才会被注入。 |
-| **模型自主记录** | 由 agent 自己判断什么值得记（踩过的坑、结论、关于你的信息）并直接写入 —— `judgeMode: model`（默认）。 |
+| **审阅收件箱** | 所有自动写入都先待在收件箱，你点通过之前不会进提示词。只有 agent 显式调用 `remember` 才直写。 |
+| **模型自主记录** | 由 agent 自己判断什么值得记（踩过的坑、结论、关于你的信息）并通过 `remember` 直接写入 —— `judgeMode: model`（默认）。插件自己推断的内容一律先进收件箱。 |
 | **只更新，不堆叠** | agent 先搜索再改写已有条目：一个事实只有一条记忆，且永远是最新文本。 |
 | **`[全局]` 前缀** | 记忆内容以 `[全局]` / `[global]` 开头即每轮注入。 |
 | **Token 仪表盘** | 逐段显示字节/token 开销，常驻记忆挤占预算时会告警。 |
 | **提示词预览** | 一键查看新会话真正会收到的注入文本。 |
-| **单文件管理器** | `dsh-memory-manager.exe`（~34 MB）内嵌 Node 与全部资源；双击即用，托盘常驻，不用记网址。 |
+| **单文件管理器** | `dsh-memory-manager.exe`（~34 MB，**unsigned**，经 GitHub Releases 分发）内嵌 Node 与全部资源；双击即用，托盘常驻，不用记网址。 |
 | **SQLite 存储** | 用 Node 内置的 `node:sqlite`，WAL 模式，一个本地库文件 —— 照样不需要装任何东西。 |
 | **本地向量索引** | 字符/词 n-gram 哈希到 256 维，余弦相似度与关键词得分混合 —— 只认字面相近，不认同义词；`vector: false` 可关。 |
 | **零运行时依赖** | 服务端只用 `node:http`，不需要 `npm install`。 |
@@ -94,9 +94,9 @@ dsh-thirdparty-memory 走中间那条路：记忆先**分类**，注入前先**�
 
 ## 安装
 
-### 方式一：管理程序 exe（最省事）
+### 方式一：管理程序 exe（从 Releases 下载）
 
-运行 `dsh-memory-manager.exe`。首次启动会问界面语言（English / 简体中文 / 繁體中文），把自带运行时解压到 `%LOCALAPPDATA%\dsh-thirdparty-memory\`，启动记忆页并在浏览器打开。之后托盘常驻：
+从 [Releases](../../releases) 页面下载 `dsh-memory-manager.exe` —— 它不在本仓库里。这是一个 **unsigned** 的单文件（约 34 MB），内嵌 Node 运行时；Windows SmartScreen 可能因此提示，你也可以用 `build-single-exe.ps1` 自己从源码编译。首次启动会问界面语言（English / 简体中文 / 繁體中文），把自带运行时解压到 `%LOCALAPPDATA%\dsh-thirdparty-memory\`，启动记忆页并在浏览器打开。之后托盘常驻：
 
 `打开记忆页` · `复制网址` · `存储位置…` · `打开存储目录` · `更改端口…` · `重启/停止服务` · `挂载到 DSH…` · `语言` · `退出`
 
@@ -117,9 +117,11 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -CreateWeb      # 顺带�
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair         # 去掉各 profile 清单里的 UTF-8 BOM
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -ProfileDir "C:\Users\you\.dsh\profiles\web"
 powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-mem/memory.json"
+powershell -ExecutionPolicy Bypass -File .\attach.ps1 -PluginDir "D:\plugins\dsh-thirdparty-memory"
+powershell -ExecutionPolicy Bypass -File .\attach.ps1 -RuntimeDir "C:\path\to\dsh\node_modules\@deepseek-ai" -Force
 ```
 
-不传 `-DataFile` 时，脚本会保留 patch 里已有的 `dataFile` —— 它不再删掉那一行（以前删掉等于偷偷换了记忆位置）。`-Repair` 只修清单：打印 `fixed=… clean=… invalid=…` 后直接退出。
+脚本是幂等的（`[skip]` 表示「已经是对的」）。它会自动探测所有能找到的 DSH home（MSIX / 便携版 / 命令行），建 junction、注册 bundle、写 patch 行；带 `-RuntimeDir` 时还会把插件的 `dsh-tools` peer 指到宿主那份。不传 `-DataFile` 时，脚本会保留 patch 里已有的 `dataFile` —— 它不再删掉那一行（以前删掉等于偷偷换了记忆位置）。`-Repair` 只修清单：打印 `fixed=… clean=… invalid=…` 后直接退出。
 
 ### 方式三：手工四步
 
@@ -138,7 +140,7 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-mem/memo
    ```
 4. 给插件配好对等依赖：把 `<插件>\node_modules\@deepseek-ai\dsh-tools` 链接到宿主里的同名包
 
-**重启 DSH。** bundle 只在启动时读取。之后 *设置 → 插件* 里会出现 `dsh-thirdparty-memory`，记忆页在 <http://127.0.0.1:7891/>。
+**重启 DSH。** bundle 只在启动时读取。之后 *设置 → 插件* 里会出现 `dsh-thirdparty-memory`，记忆页在 <http://127.5.0.1:7891/>（同时监听 `127.0.0.1`，所以 <http://localhost:7891/> 也能开）。
 
 ---
 
@@ -167,7 +169,7 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-mem/memo
 
 ## 记忆页
 
-<http://127.0.0.1:7891/>（同时监听 `127.0.0.1`）
+<http://127.5.0.1:7891/>（同时监听 `127.0.0.1`，所以 `http://localhost:7891/` 也能开）
 
 | 栏目 | 作用 |
 | --- | --- |
@@ -189,7 +191,7 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -DataFile "D:/dsh-mem/memo
 | `enabled` | `true` | 硬开关。关闭 = 不注入、不提取、`add` 也失败。 |
 | `judgeMode` | `model` | `model` 由模型判断该记什么 · `rules` 内置正则兜底 · `off` 从不自动记录 |
 | `autoExtract` | `true` | 仅当 `judgeMode: rules` 时生效 |
-| `inbox` | `true` | 正则提取出的画像条目需要审阅 |
+| `inbox` | `true` | **所有自动写入**（插件推断的内容）都存成 pending、必须审阅；`false` 直接写为 active。显式 `remember` 调用不受影响。 |
 | `injectMode` | `relevant` | `relevant` 按关键词选 · `all` 全量注入 |
 | `maxBytes` | `8192` | 注入字节预算 |
 | `maxRelevant` | `6` | 每轮最多匹配条目数 |
@@ -280,6 +282,70 @@ Store/MSIX 版 DSH Desktop 装完一重启就崩，每次必崩。根因是 prof
 
 ---
 
+## 0.4.4 修复
+
+0.4.4 是 0.4.3 之上的正确性、加固与发布工程版本。不改存储格式、不改配置：替换插件文件即可，SQLite 库和 JSON 库都按原来的方式读，升级不会碰记忆目录。
+
+### 服务端语义
+
+* **总开关变成真正的闸门。** `enabled: false` 时，所有写接口（`entry/add`、`entry/update`、`entry/delete`、`inbox`、`inbox/bulk`）返回 `409 MEMORY_DISABLED`；`/api/settings` 保持可写，否则没法重新打开；`GET /api/state`、`/api/export`、`/api/preview` 不受影响。库降级时的 `409` 优先级保持不变。
+* **`inbox/bulk` 校验 `action`。** 只接受 `accept` / `reject`，其它值返回 `400`。
+* **`accept` / `reject` / `edit` 是三件不同的事。** `accept` 应用 `content` / `category` / `priority` / `project` / `tags` / `ttlDays` 并置 `status: active`；`reject` 只置 `status: rejected`；`edit` 应用同样的字段覆盖但保持原状态（pending 仍是 pending）。其它 action 返回 `400`。
+* **写入前先校验长度。** inbox 的 accept/edit 内容超过 2048 字节返回 `400`，且不会落盘。
+* **设置在写入前先校验。** `injectMode` 只能是 `relevant` / `all`，`showIndex` 必须是布尔 —— 其它值返回 `400` 并回显当前生效配置，什么都不写入。`judgeMode` 只接受 `model` / `rules` / `off`，`lang` 走语言归一，数值键（`maxRelevant`、`minScore`、`maxBytes`、`maxEntries`、`indexChars`、`perCluster`、`recallMaxBytes`、`maxRecall`）只接受有限且 `> 0` 的数（取整后写入）；不满足的值会被忽略而不是写入，所以设置不会出现「写了一半、状态非法」。
+* **`{reset: true}` 恢复全部默认值**，包括 `enabled`、`judgeMode`、`lang`、`perCluster`、`recallMaxBytes`、`maxRecall`。
+* **`/api/export` 自带体检信息。** 顶层新增 `degraded`（健康时为 `null`）、`revision`、`dataFile`、`storage`，导出文件本身就能判断状态。
+* **`settings.overrides` 回显部署层。** 页面写入用的 `OVERRIDABLE_CONFIG_KEYS` 白名单（外加 `lang`）现在也用于回读，「实际会用到什么配置」一目了然。
+* **已注册路径的方法用错返回 `405` + `Allow`。** `PATCH` / `DELETE` 以及其它未知方法仍返回 `404`。
+* **`id` 与 `number` 互相核对。** `update` / `delete` / `inbox` 同时接受两者；若编号当前指向的条目 id 与提交的 id 不同，返回 `409 MEMORY_CONFIRM_MISMATCH`（「编号已变化，请刷新后重试」），不会改错、删错记忆。
+* **去重改为归一化比较。** `add` 用 `normalizeForDedupe()`（忽略大小写、空白和标点）判断重复，`Same  fact.` 和 `same fact` 视为同一条；其它地方仍用精确比较。
+* **`sameFile()` 分平台正确。** Windows 下统一分隔符并忽略大小写，其它平台用正斜杠、区分大小写。
+
+### UI
+
+* **非法数字在发请求前就被拦下。** 保存设置时校验 `maxBytes`、`maxRelevant`、`minScore`、`indexChars`（以及其它数值字段）：该行就地报错、不发送请求、不弹保存成功。
+* **轮询不再覆盖未保存的设置。** 6 秒刷新在设置表单有改动（dirty）或焦点在表单内时跳过设置区，其它区域照常刷新。
+* **导出失败可见。** 导出加了 try/catch，失败弹 toast，不再出现未处理的 Promise rejection。
+* **窄屏可用。** 720 px 断点把 224 px 侧栏折成顶部栏、网格改单列，360 px 宽没有横向滚动。
+* **状态全部国际化。** `active` / `pending` / `rejected` / `archived` 都走 `t("status." + status)`，`archived` 在列表和抽屉里都有自己的标签与颜色。
+* **分类 chip 计数与列表同口径。** 计数和列表一样排除 pending，chip 上的数字等于可见条数。
+* **UI 对接新的服务端语义。** update/delete/inbox 同时带 `id` 和 `number`；`409 MEMORY_CONFIRM_MISMATCH` 弹「编号已变化，已刷新」并重新加载；`409 MEMORY_DISABLED` 弹「记忆已关闭」；`400` 显示服务端文案，`404` 维持原提示。inbox 的 Accept 发送完整字段，编辑保存用 `edit`、不会当成 accept 发。
+
+### 引擎与渲染
+
+* **默认所有自动写入都进收件箱。** 由 `autoWriteStatus()` 统一决定：`inbox: false` → `active`，否则 → `pending`（profile 与 explicit 捕获都一样）。`inbox` 配置语义不变（默认 `true`）。
+* **`injectMode: all` 不再泄漏会话。** `entriesForAllMode()` 会剔除属于其它会话的 ephemeral 条目，当前会话的 ephemeral 仍按 ephemeral 保留；第二个窗口或子代理看不到别的对话的临时记忆。
+* **`pluginBuildId()` 失败可回退。** 算不出源码哈希时缓存 `unknown-<base36 时间戳>`（每个进程不同），不抛错、不返回空串。
+* **升级时会替换旧的记忆页进程。** 新进程先探 `/api/health`、比较构建标识，确认后才停掉旧进程；以前升级前启动的页面会一直占着端口跑旧代码。
+* **JSON → SQLite 迁移失败不再留下半个空库**，下一次读保持降级（只读），不会把空库当成正常库接受写入；后台缓存键也加入旧 JSON 路径，`storageInfo()` 先于首次 `loadStore()` 调用不会再永久跳过迁移。
+* **渲染少打印一个空壳。** `renderInjection()` 不再输出没有条目的分节标题；预算 / 省略逻辑保持不变。
+* **零碎修正。** `storageInfo()` 报告过期条目数；`parseTags()` 对标签去重。
+
+### 发布工程
+
+* **`attach.ps1` 重新进仓库**（以根目录那份为准），没有机器相关硬编码路径；上面的「方式二」列出的就是它真实支持的参数。
+* **管理器 exe 走 GitHub Releases 分发**，不进仓库。README 说明它是 unsigned 单文件、以及如何用 `build-single-exe.ps1` 自己构建；npm `files` 里那条并不存在的 `dsh-memory-manager.exe` 已移除（该文件被 .gitignore、由构建产出）。
+* **管理器源码与二进制对齐。** `manager/DshMemoryManager.cs` 换成 0.4.3 那一版源码（默认存储目录在 `%APPDATA%`、能识别旧目录、记住上次的存储目录），`Version = "0.4.4"`；仓库里那份 0.4.0 旧源码已消失。
+* **CI 跑真实套件。** `.github/workflows/syntax.yml` 保留 `node --check` 与导出冒烟，新增 `tests/core-audit/run-all.mjs` 与 `tests/http-audit.mjs` 并各自带门禁。`tests/static-audit.mjs` 故意不进 CI —— 原因见下面「测试侧的已知问题」。
+* **地址口径统一。** 默认 `127.5.0.1:7891`，同时监听 `127.0.0.1`；三语文档与教程都这么写。
+
+### 验证
+
+在 Windows 10/11 + Node 24.21.0（有 `node:sqlite`）、隔离数据目录与端口上实测，真实记忆库未被触碰：
+
+| 套件 | 结果 | 说明 |
+| --- | --- | --- |
+| `tests/core-audit/run-all.mjs` | **220/220 全绿**（12 个文件） | CRUD、编号、TTL、迁移、备份保留、降级状态、并发、WAL |
+| `tests/http-audit.mjs` | **65/67** | 剩余 2 条红是审计脚本自身的矛盾：A37 与 B5 |
+| `tests/static-audit.mjs` | **25/27** | S26/S27 是已知误报；手动运行，不进 CI |
+| `tests/regression-0.4.4.mjs` | 全绿 | 本批新写的验收用例 |
+
+测试侧的已知问题（不是产品缺陷）：
+
+* **A37** 期望 `inbox/bulk accept` 报 `touched = 3`，同时又依赖 A19/A36 留下的 pending 条目；两个期望互斥，这条检查无法和它自己的前置条件同时成立。
+* **B5** 要求 `export.degraded === undefined`，而 A2c 要求 export 必须带 `degraded`。两者不可能同时通过；产品保留更安全的 `degraded` 字段，避免把降级导出误当成完整导出。
+* **S26/S27**（静态审计）只扫 `core.js`，因此得出 `injectMode` / `maxEntries` 没被消费的结论 —— 它们是在 `index.js` 里消费的。所以静态审计不进 CI。
+
 ## 0.4.3 修复
 
 0.4.3 是 0.4.2 之上的正确性版本。不改存储格式、不改配置、不需要迁移：替换插件文件即可，SQLite 库和 JSON 库都按原来的方式读。
@@ -357,7 +423,7 @@ SQLite 读不出来时，插件不再回退到旧的 `memory.json` 快照，而�
 
 ## 数据格式
 
-存储用的是 SQLite —— 路径、迁移与更新规则见 [存储、向量与更新](#存储向量与更新)。下面这个 JSON 结构是**回退**格式（运行时没有 `node:sqlite` 时读写它），也是 `GET /api/export` 导出的形状：
+存储用的是 SQLite —— 路径、迁移与更新规则见 [存储、向量与更新](#存储向量与更新)。下面这个 JSON 结构是**回退**格式（运行时没有 `node:sqlite` 时读写它）。`GET /api/export` 返回同样的形状，0.4.4 起顶层还带 `degraded`、`revision`、`dataFile` 和 `storage`：
 
 ```json
 {
@@ -387,11 +453,11 @@ SQLite 读不出来时，插件不再回退到旧的 `memory.json` 快照，而�
 | GET | `/api/state?q=` | 状态 + 条目 + 仪表盘 |
 | GET | `/api/export` | 导出 JSON |
 | POST | `/api/entry/add` · `/update` · `/delete` | 条目增删改（删除按设计只能一条一条来） |
-| POST | `/api/inbox` · `/api/inbox/bulk` | 通过 / 拒绝 |
+| POST | `/api/inbox` · `/api/inbox/bulk` | 通过 / 拒绝 / 编辑（批量只支持通过 / 拒绝） |
 | POST | `/api/settings` | 写用户层设置（`{reset:true}` 恢复默认） |
 | POST | `/api/preview` | 渲染指定 `q` 的注入结果 |
 
-只监听回环地址；POST 要求 `application/json`，可以挡掉跨站表单提交。
+只监听回环地址。`Host` 头必须是回环地址（或配置里的 `pageHost`），带端口时必须是配置端口，否则返回 `421 Misdirected Request`，可挡住 DNS rebinding 页面。POST 要求 `application/json`，可以挡掉跨站表单提交。已注册路径用了不支持的方法返回 `405` 并带 `Allow` 头；`PATCH` / `DELETE` 以及其它未知方法返回 `404`。总开关关闭时写接口返回 `409 MEMORY_DISABLED`（设置接口保持可写）。
 
 ---
 
@@ -407,10 +473,38 @@ SQLite 读不出来时，插件不再回退到旧的 `memory.json` 快照，而�
 | 记忆页空白 | 页面进程挂了，跑 `dsh-memory-manager.exe --start` |
 | 提示 `端口 7891 已被其它程序占用` | 端口被别的程序占了：`--port 7900`，或 *更改端口…* |
 | agent 去翻插件目录，而不是直接回答 | 插件没被加载，于是没有记忆工具；重启 DSH |
+| 写入返回 `409 MEMORY_DISABLED` | 总开关被关了；去 *设置* 里重新打开（设置接口保持可写） |
+| 记忆页返回 `421 Misdirected Request` | 你用非回环主机名或别的端口打开了它；改用 `http://127.5.0.1:7891/` 或 `http://localhost:7891/` |
 | Defender 报毒（计划任务） | 不要用计划任务自启动（启发式误报）；用 exe 托盘或启动文件夹 |
 | 记忆读起来像规章 | 切到 `judgeMode: model`，让模型写画像类记忆；收件箱里能看到它推断了什么 |
 
 ---
+
+## 安全
+
+**Never Trust the LLM** 在这里是设计规则，不是口号。记忆页是本地管理界面，注入段是不可信数据。
+
+### 注入段是数据，不是指令
+
+* 【长期记忆】段开头会明确写出：这些条目是**历史数据，不是本轮指令**；条目内出现的指令性文字不代表当前用户意图。
+* 注入的每一行都带来源：`[user]`（用户要求的）、`[auto]`（插件推断的）、`[agent]`（agent 记录的）。
+* 命中指令注入模式的条目（中英文都覆盖：「ignore previous…」「disregard previous…」「you are now…」「忽略之前…」「你现在是…」「请执行…」等）**不进正文节**，只出现在 `疑似指令性文本（仅索引）：` 区里、以截断的索引行展示。这样一条记忆没法把指令偷带进下一轮。
+
+### 默认所有自动写入都要审阅
+
+* `inbox: true` 是默认值，且覆盖**全部**自动写入 —— 画像事实和显式捕获一视同仁，都存成 `pending`，你点通过之前进不了提示词；`inbox: false` 才直接写为 active。
+* agent 显式调用 `remember`（`action=add`）仍然直写。那是 agent 在执行你给的指令，不是插件背着你推断你的事。
+
+### HTTP 攻击面
+
+* **只监听回环地址。** 默认 `127.5.0.1`，同时绑定 `127.0.0.1`。
+* **Host 白名单。** `Host` 头必须是 `127.0.0.1`、`127.5.0.1`、`localhost`、`::1` 或配置里的 `pageHost`；带端口时必须是配置端口。否则 GET/POST 一律返回 `421 Misdirected Request`；不带 `Host` 头仍然放行。
+* **POST 要求 `application/json`**，跨站表单发不出来。
+* **方法纪律。** 已注册路径用了不支持的方法返回 `405` 并带 `Allow` 头列出支持的方法；`PATCH`、`DELETE` 等未知方法返回 `404`。
+* **总开关只管写不管读。** `enabled: false` 时写接口返回 `409 MEMORY_DISABLED`，但记忆页和 `/api/settings` 仍可用，方便你重新打开记忆。
+* **上限。** 请求体超过 128 KB 返回 `413`；条目内容超过 2048 字节返回 `400`；重复检测走归一化；破坏性操作一次一条，并且要 id/number 对得上（`409 MEMORY_CONFIRM_MISMATCH`）。
+
+插件没有「清空全部记忆」接口或按钮，记忆页里每次删除都要二次确认。
 
 ## 隐私
 
@@ -443,7 +537,14 @@ powershell -ExecutionPolicy Bypass -File build-release.ps1
 
 :: 改完 Markdown 后重新生成纯文本文档
 node tools/md2txt.mjs README.md README.zh-CN.md README.zh-TW.md docs/tutorial.md docs/tutorial.zh-CN.md docs/tutorial.zh-TW.md
+
+:: 本地跑审计（CI 只跑前两个，静态审计手动跑）
+node tests/core-audit/run-all.mjs
+node tests/http-audit.mjs
+node tests/static-audit.mjs
 ```
+
+CI（`.github/workflows/syntax.yml`）跑 `node --check`、导出冒烟、`tests/core-audit/run-all.mjs` 和 `tests/http-audit.mjs`。`tests/static-audit.mjs` 因为有下面「0.4.4 修复」里说明的两条已知误报，不进 CI，请手动运行。这些套件都不需要额外依赖，也绝不碰真实记忆库。
 
 ---
 

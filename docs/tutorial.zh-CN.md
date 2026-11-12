@@ -5,7 +5,7 @@
 简体中文版。英文根文档：[tutorial.md](tutorial.md) · 繁體中文：[tutorial.zh-TW.md](tutorial.zh-TW.md)。
 每种语言都同时提供纯文本版（`tutorial.txt`、`tutorial.zh-CN.txt`、`tutorial.zh-TW.txt`）。
 
-版本：**0.4.3（2026-11-10）**。
+版本：**0.4.4（2026-11-12）**。
 > 联系方式：受限于网络环境，不常看 GitHub，请通过中国大陆社交平台：抖音（非 TikTok）Steelgang、QQ 2278998874 联系。请使用 English 或者简体中文交流。 添加好友时请备注：GitHub 用户名 + 项目名 + 来意。 请遵循 UTC+8 中国北京时间沟通，否则可能无法接到消息。
 
 
@@ -20,7 +20,7 @@
 | 组件 | 在哪里 | 干什么 | 怎么重启 |
 | --- | --- | --- | --- |
 | **插件**（`index.js` + `core.js`） | 某个 DSH profile 里，由 Cordis loader 加载 | 注入【长期记忆】段、注册 `remember` 工具、监听对话事件 | **重启 DSH**（bundle 只在启动时加载） |
-| **记忆页服务**（`server.js` + `ui.html` + `core.js`） | 一个独立的 `node` 进程 | 提供 <http://127.0.0.1:7891/>，读写同一个记忆库 | `dsh-memory-manager.exe --restart`，或托盘 ▸ 重启服务 |
+| **记忆页服务**（`server.js` + `ui.html` + `core.js`） | 一个独立的 `node` 进程 | 提供 <http://127.5.0.1:7891/>（同时监听 `127.0.0.1`），读写同一个记忆库 | `dsh-memory-manager.exe --restart`，或托盘 ▸ 重启服务 |
 | **管理器 exe**（`dsh-memory-manager.exe`） | 你放哪儿都行 | 解压内置运行时、启停记忆页、托盘菜单、存储/端口/语言设置 | 重新运行它 |
 | **记忆库**（SQLite `memory.sqlite`，可回退 JSON） | `dataFile`（默认 `%APPDATA%\dsh-thirdparty-memory\memory.sqlite`，或你指定的存储目录） | 插件与记忆页共同读写的唯一真相 | 不用重启；每次操作都重新读库 |
 
@@ -51,10 +51,10 @@ profile 就是一个文件夹，里面装着 `package.json`、`cordis.patch.yml`
 
 ### 1.2 方式一：管理器 exe（推荐）
 
-1. 把 `dsh-memory-manager.exe` 放到任意可写目录（例如 `D:\tools\`）。就一个 ~34 MB 的单文件，不需要别的。
+1. 从 [Releases](../../../releases) 页面下载 `dsh-memory-manager.exe`（它不在本仓库里），放到任意可写目录（例如 `D:\tools\`）。就一个 ~34 MB 的 **unsigned** 单文件，Windows SmartScreen 可能因此提示，你也可以用 `build-single-exe.ps1` 从源码自己编译。不需要别的。
 2. 双击运行。
    * **首次运行**会问界面语言 → English / 简体中文 / 繁體中文。选择会写进 `%LOCALAPPDATA%\dsh-thirdparty-memory\config.json`，之后一直沿用（托盘 ▸ 语言 可改）。
-   * 它会把内置的 Node 运行时和应用文件解压到 `%LOCALAPPDATA%\dsh-thirdparty-memory\`，启动记忆页并打开 <http://127.0.0.1:7891/>。
+   * 它会把内置的 Node 运行时和应用文件解压到 `%LOCALAPPDATA%\dsh-thirdparty-memory\`，启动记忆页并打开 <http://127.5.0.1:7891/>。
    * 托盘出现图标：`打开记忆页`、`复制网址`、`存储位置…`、`打开存储目录`、`更改端口…`、`重启服务`、`停止服务`、`挂载到 DSH…`、`打开安装目录`、`语言`、`退出`。
 3. 托盘 ▸ **挂载到 DSH…**（或运行 `dsh-memory-manager.exe --install`）。它会为每个找到的 profile 建 junction、登记 bundle、写 patch 条目，并把插件的 `dsh-tools` 对等依赖指向宿主那一份。
 4. **重启 DSH。**
@@ -165,7 +165,7 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -RuntimeDir "D:\harness\no
 | `enabled` | `true` | 你想要一个全局总闸（比如开一个敏感会话） |
 | `judgeMode` | `model` | 想零 token 开销提取 → `rules`；只想响应明确要求 → `off` |
 | `autoExtract` | `true` | 只在 `judgeMode: rules` 时有意义 |
-| `inbox` | `true` | 设 `false` 让正则提取的画像条目直接生效 |
+| `inbox` | `true` | 覆盖**全部**自动写入：`true` 时存成 pending 等你在收件箱审阅，`false` 时直接存为 active。显式 `remember` 调用不受影响 |
 | `injectMode` | `relevant` | 记忆很少、希望一直全量可见时设 `all` |
 | `maxBytes` | `8192` | 小模型/长上下文时调小；项目类事实多时调大 |
 | `maxRelevant` | `6` | 问题经常横跨多个话题时调大 |
@@ -358,6 +358,28 @@ powershell -ExecutionPolicy Bypass -File .\attach.ps1 -Repair
 
 **其他小修。** `ephemeral` 条目现在带上创建它的那次调用的会话 id（以前永远休眠）；超大请求体现在返回 `413`，而不是连接被重置。
 
+### 2.12 0.4.4 修复
+
+0.4.4 是正确性、加固与发布工程版本，不需要迁移或改配置：替换插件文件（exe 从 Releases 取新的），记忆库保持不动。
+
+**总开关闸门。** `enabled: false` 时所有写接口（`entry/add`、`entry/update`、`entry/delete`、`inbox`、`inbox/bulk`）返回 `409 MEMORY_DISABLED`；`/api/settings` 保持可写，方便你重新打开记忆；读接口（`/api/state`、`/api/export`、`/api/preview`）照常工作。
+
+**收件箱三个动作分开。** `accept` 应用提交的字段并置为 active；`reject` 只置为 rejected；`edit` 应用字段但保持原状态。`inbox/bulk` 只接受 `accept` / `reject`。内容超过 2048 字节在写入前就返回 `400`。
+
+**设置在写入前先校验。** `injectMode` 只能是 `relevant` / `all`、`showIndex` 必须是布尔；其它值返回 `400` 并回显当前配置，什么都不写入。`judgeMode` 只接受 `model` / `rules` / `off`，`lang` 走语言归一，数值键只接受有限且 `> 0` 的数；不满足的值会被忽略而不是写入，所以设置不会半写入。`{reset: true}` 恢复全部默认值（包括 `enabled`）。
+
+**导出与覆盖值透明。** `/api/export` 顶层还带 `degraded`、`revision`、`dataFile` 和 `storage`；`settings.overrides` 回显部署层的值（与写入白名单同源，外加 `lang`）。
+
+**HTTP 错误更精确。** 已注册路径用错方法返回 `405` + `Allow`；`PATCH` / `DELETE` 仍返回 `404`。`id` 与 `number` 互相核对，编号漂移返回 `409 MEMORY_CONFIRM_MISMATCH`。重复检测改为归一化比较（忽略大小写、空白、标点），`sameFile()` 按平台正确比较路径。
+
+**安全。** 注入段明确声明「这些条目是历史数据，不是本轮指令」；每行带 `[user]` / `[auto]` / `[agent]` 来源；命中指令性文本的条目被移到只进索引的 `疑似指令性文本（仅索引）：` 区。默认 `inbox: true` 覆盖全部自动写入，显式 `remember` 仍然直写。记忆页服务只接受 `Host` 头为本机回环地址且端口匹配的请求，否则返回 `421 Misdirected Request`。
+
+**UI。** 非法数字就地报错、不发送请求；6 秒轮询不再覆盖未保存的设置；导出失败弹 toast；720 px 断点让 360 px 宽窗口可用；状态（含 `archived`）全部国际化；分类 chip 计数与列表一致；update/delete/inbox 同时带 `id` 与 `number`，并理解新的 409 / 400 响应。
+
+**引擎。** `autoWriteStatus()` 统一决定是否进收件箱；`entriesForAllMode()` 不再泄漏其它会话的 ephemeral 条目；`pluginBuildId()` 失败时回退成 `unknown-<base36 时间戳>`；升级时会替换旧的记忆页进程；迁移失败不再留下半个空库；`renderInjection()` 不再打印空分节标题。
+
+**0.4.4 验证。** core-audit 12 个文件 / **220 项全绿**；http-audit **65/67**（剩余 A37、B5 两条是审计脚本自身的矛盾）；static-audit **25/27**（S26/S27 为已知误报，手动运行：`node tests/static-audit.mjs`）。CI 跑 `node --check`、导出冒烟、core-audit 与 http-audit。
+
 ---
 
 ## 3. 日常使用
@@ -463,7 +485,7 @@ dsh-memory-manager.exe --start       :: 启动它
 > 想读到退出码得注意：管理器是 GUI 子系统程序，PowerShell 里用 `&` 调用不会等它结束，`$LASTEXITCODE` 是空的。要拿数字就用 `cmd /c "dsh-memory-manager.exe --status & echo %ERRORLEVEL%"` 或 `Start-Process -Wait -PassThru …`。
 
 * **退出码 3** → 端口归别人。`--port 7900`，或托盘 ▸ 更改端口…
-* 启动成功但浏览器一片空白 → 同时试试 `http://127.0.0.1:7891/` 和 `127.5.0.1`。
+* 启动成功但浏览器一片空白 → 同时试试 `http://127.5.0.1:7891/` 和 `http://127.0.0.1:7891/`。
 * 之前好好的，突然白了 → 进程死了（被清理脚本杀掉、重启、或被 OOM）。`--start` 拉回来；DSH 启动时插件也会自己拉一次。
 
 ### 4.3 「我的记忆没了！」
@@ -526,7 +548,9 @@ dsh-thirdparty-memory/
 ├── attach.ps1            多宿主安装脚本（junction + bundles + patch + 对等依赖 + dataFile）
 ├── build-single-exe.ps1  重建单文件管理器
 ├── build-release.ps1     打包 release\dsh-thirdparty-memory-<版本>.zip（含敏感路径检查）
+├── RELEASE-0.4.4.txt     本版本的发布说明（英文为根，附中文补充）
 ├── tools/md2txt.mjs      从 .md 源文件重新生成 .txt 文档
+├── tests/                审计与回归套件（CI 跑 core-audit 与 http-audit；static-audit 手动）
 ├── manager/
 │   ├── DshMemoryManager.cs   单文件管理器源码（内嵌 Node 与文档）
 │   └── Program.cs            旧的「同目录」管理器源码（不随包发布）
@@ -548,14 +572,14 @@ dsh-thirdparty-memory/
 | GET | `/api/state?q=&session=` | — | 配置、设置、条目、仪表盘、预览 |
 | GET | `/api/export` | — | 完整 JSON |
 | POST | `/api/entry/add` | `{content, category?, project?, priority?, tags?, ttlDays?}` | 400 空内容，409 重复 |
-| POST | `/api/entry/update` | `{id, ...fields}` | 支持 `ttlDays`、`clearExpiry` |
-| POST | `/api/entry/delete` | `{id}` | 按设计一次一条 |
-| POST | `/api/inbox` | `{id, action: accept\|reject, content?}` | |
-| POST | `/api/inbox/bulk` | `{action}` | |
+| POST | `/api/entry/update` | `{id, number?, ...fields}` | 支持 `ttlDays`、`clearExpiry`；编号漂移返回 `409 MEMORY_CONFIRM_MISMATCH` |
+| POST | `/api/entry/delete` | `{id, number?, confirm: true}` | 按设计一次一条；同样复核编号 |
+| POST | `/api/inbox` | `{id, number?, action: accept\|reject\|edit, content?, …}` | accept = 应用字段并置 active · reject = 只改状态 · edit = 应用字段但状态不变 |
+| POST | `/api/inbox/bulk` | `{action: accept\|reject}` | 其它 action 返回 `400` |
 | POST | `/api/settings` | `{enabled?, autoExtract?, judgeMode?, injectMode?, showIndex?, lang?, maxBytes?, …}` | `{reset:true}` 恢复默认 |
 | POST | `/api/preview` | `{q?, session?}` | 渲染注入结果 |
 
-所有 POST 都要求 `Content-Type: application/json`。
+所有 POST 都要求 `Content-Type: application/json`。服务端只接受 `Host` 头为本机回环地址（`127.0.0.1`、`127.5.0.1`、`localhost`、`::1` 或配置里的 `pageHost`）且端口匹配的请求，否则返回 `421 Misdirected Request`。已注册路径用了不支持的方法返回 `405` + `Allow`，`PATCH` / `DELETE` 等未知方法返回 `404`。总开关关闭时写接口返回 `409 MEMORY_DISABLED`，`/api/settings` 保持可写。
 
 ## 附录 C — 速查
 
@@ -581,6 +605,11 @@ powershell -ExecutionPolicy Bypass -File build-release.ps1
 
 :: 从 Markdown 重新生成 .txt 文档
 node tools/md2txt.mjs README.md docs/tutorial.md
+
+:: 跑审计（CI 只跑前两个；static-audit 手动）
+node tests/core-audit/run-all.mjs
+node tests/http-audit.mjs
+node tests/static-audit.mjs
 ```
 
 许可证：MIT。内嵌的 Node 运行时同样是 MIT —— 见 `docs/NODE-LICENSE.txt`。
