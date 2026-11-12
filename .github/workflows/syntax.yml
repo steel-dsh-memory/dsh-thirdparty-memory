@@ -32,11 +32,13 @@ jobs:
         # failures (observed on this repo: same commit red on one run, green on
         # the next). Assertions are NOT relaxed: the suite runs twice and the
         # gate below reads the last run, failing on any real failure.
-        # (run-all.mjs always exits 0 by design, so the gate is what decides.)
+        # (0.4.5: run-all.mjs now exits non-zero on failures; the gate stays as a
+        # cross-check on the aggregated result JSON and on the exact check count.)
         run: |
           node tests/core-audit/run-all.mjs
           node tests/core-audit/run-all.mjs
       - name: Core audit gate
+        if: always()
         run: |
           node -e '
             const fs = require("fs");
@@ -49,16 +51,20 @@ jobs:
             console.log("core-audit: " + files.length + " files, " + passed + " passed, " + failed + " failed");
             if (files.length !== 12 || failed !== 0 || passed !== 220) process.exit(1);
           '
-      - name: HTTP audit (65/67 expected; A37 and B5 are known test-side contradictions)
+      - name: HTTP audit (67 checks, expected 67/67)
+        # 0.4.5: the three previously-red checks are fixed at the test side
+        # (A37 counted seeds instead of the pending delta; B5 asserted the old
+        # buggy export shape; A44c now ignores node:sqlite ExperimentalWarning).
+        # No allowlist: any red is a real red. http-audit.mjs exits non-zero.
         run: node tests/http-audit.mjs
       - name: HTTP audit gate
+        if: always()
         run: |
           node -e '
             const fs = require("fs");
             const payload = JSON.parse(fs.readFileSync("tests/http-audit-result.json", "utf8"));
             const failed = payload.results.filter((row) => !row.ok).map((row) => row.id);
-            const allowed = ["A37", "B5"];
             const passed = payload.results.length - failed.length;
             console.log("http-audit: " + passed + "/" + payload.results.length + " passed; failed: " + (failed.join(",") || "none"));
-            if (failed.some((id) => !allowed.includes(id))) process.exit(1);
+            if (payload.results.length !== 67 || failed.length !== 0) process.exit(1);
           '

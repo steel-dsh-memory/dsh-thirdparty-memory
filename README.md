@@ -20,7 +20,7 @@ One master switch, automatic extraction, five kinds of memory, a review inbox, k
 > - Storage: a single SQLite file that never leaves your machine. Uninstall it, or switch models? Take the file with you — your memory lives on.
 
 ```
-Version   : 0.4.4 (2026-11-12) · MIT · unofficial
+Version   : 0.4.5 (2026-11-12) · MIT · unofficial
 Platforms : DSH Desktop (MSIX) · DeepSeek Harness portable (Electron) · CLI `dsh web`
 Runtime   : Node.js 18+ (the exe ships Node 24; SQLite storage needs `node:sqlite`, Node 22.5+)
 Storage   : local SQLite through the built-in `node:sqlite` (WAL) — no server, no cloud, no telemetry
@@ -273,6 +273,7 @@ Without `node:sqlite` there is no vector table, so retrieval is keyword-only —
 * **Replacing the plugin folder only swaps code.** An update does not overwrite, migrate, rename or delete any memory file.
 * **`attach.ps1` keeps an existing `dataFile`.** Without `-DataFile` it leaves the configured path alone; previously it dropped that line, which quietly moved the store.
 * **`attach.ps1 -Repair`** scans every DSH profile's `package.json`, backs up any manifest that carries a UTF-8 BOM and rewrites it without one.
+* **Since 0.4.4 the default inbox covers every automatic write.** After upgrading, notes the agent records on its own — the "lessons / pitfalls" it used to write straight in — now land in the review inbox as `pending` and are injected only after you accept them. Set `inbox: false` to restore the old direct-write behaviour. Explicit `remember` tool calls are unaffected and still write directly.
 
 ### The BOM crash (fixed in 0.4.0)
 
@@ -416,18 +417,18 @@ isolated store and port — the real store is not touched:
 | Suite | Result | Notes |
 | --- | --- | --- |
 | `tests/core-audit/run-all.mjs` | **220/220 checks green** (12 files) | CRUD, numbering, TTL, migration, backup retention, degraded states, concurrency, WAL |
-| `tests/http-audit.mjs` | **65/67** | the 2 remaining reds are contradictions inside the audit script itself: A37 and B5 |
+| `tests/http-audit.mjs` | **67/67** | 0.4.5 fixed the audit's own three test-side defects (A37's count assumption, B5's outdated assertion, A44c ignoring the `node:sqlite` ExperimentalWarning); it also exits non-zero on a real failure now |
 | `tests/static-audit.mjs` | **25/27** | S26/S27 are known false positives; run manually, not in CI |
-| `tests/regression-0.4.4.mjs` | green | acceptance cases written for this release |
+| `tests/regression-0.4.4.mjs` | **16/16** | acceptance cases written for the 0.4.4 batch |
+
+The A37 / B5 test-side defects that used to keep two checks red were fixed in
+0.4.5 (A37's `touched` count now follows the pending count captured before the
+call; B5 now requires the safer `degraded` field, matching A2c; A44c ignores
+Node's experimental/deprecation warnings). The suite reports 67/67 and the CI
+allow-list for A37/B5 was removed.
 
 Known test-side issues (not product defects):
 
-* **A37** expects `inbox/bulk accept` to report `touched = 3` while it also relies
-  on pending entries left by A19/A36; the two expectations are mutually exclusive,
-  so the check cannot pass together with its own setup.
-* **B5** requires `export.degraded === undefined`, while A2c requires the export
-  to include `degraded`. Both cannot pass at once; the product keeps the safer
-  `degraded` field so a degraded export cannot be mistaken for a complete one.
 * **S26/S27** (static audit) scan only `core.js` and therefore claim that
   `injectMode` and `maxEntries` are never consumed — they are consumed in
   `index.js`. That is why the static suite is not part of CI.
@@ -458,7 +459,7 @@ The latest user message was cached in one process-wide variable. Any session —
 * A request body over 128 KB ended in a connection reset instead of the intended `413`, because the handler destroyed the socket before answering. It now answers `413` and drains the body.
 * One corrupted character in a `server.js` comment was replaced.
 
-Verification: core-layer and HTTP regression suites (39 + 30 checks) against an isolated store and port; four-process concurrency over three rounds (101 entries and revision 101 each round); database-loss, corrupt-database, JSON-migration, backup and numbering checks; memory page rendered in headless Edge with no untranslated keys and no XSS in entry content. The real store was left untouched (59 entries before and after; WAL 0 bytes).
+Verification at the time (the original 0.4.3 count, kept for the record): core-layer and HTTP regression suites (39 + 30 checks) against an isolated store and port; four-process concurrency over three rounds (101 entries and revision 101 each round); database-loss, corrupt-database, JSON-migration, backup and numbering checks; memory page rendered in headless Edge with no untranslated keys and no XSS in entry content. The real store was left untouched (59 entries before and after; WAL 0 bytes). The suites have grown since: current totals are 220 core checks, 67 HTTP checks and 27 static checks (see *Verification* under [0.4.4 fixes](#044-fixes)).
 
 ## 0.4.2 maintenance fixes
 

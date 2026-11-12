@@ -20,7 +20,7 @@ DeepSeek Harness（DSH）的第三方長期記憶外掛。 內部識別：dsh-th
   > - 核心理念：Never Trust the LLM. 記憶是使用者的數位資產，不是模型的免費養分。
   > - 資料儲存：單一 SQLite 檔案，永不上雲。解除安裝 / 更換模型？帶走檔案，你的記憶就永生。
 
-    版本     : 0.4.4（2026-11-12）· MIT · 非官方
+    版本     : 0.4.5（2026-11-12）· MIT · 非官方
     支援平台 : DSH Desktop（MSIX）· DeepSeek Harness 可攜版（Electron）· 命令列 `dsh web`
     執行環境 : Node.js 18+（exe 自帶 Node 24；SQLite 儲存需要 `node:sqlite`，即 Node 22.5+）
     儲存方式 : 本機 SQLite（`node:sqlite` 內建，WAL 模式）—— 無伺服端、無雲端、無遙測
@@ -351,6 +351,7 @@ vectorMinCos  0.3   餘弦下限；調低 = 匹配更多（也更鬆）
 - 更新/替換外掛資料夾只換程式碼。 不覆蓋、不遷移、不改名、不刪除任何記憶檔。
 - attach.ps1 會保留既有的 dataFile。 不傳 -DataFile 時它不動設定裡的路徑；以前它會刪掉那一行，等於把記憶庫偷偷挪了位置。
 - attach.ps1 -Repair 會掃描每個 DSH profile 的 package.json，帶 UTF-8 BOM 的先備份、再去掉 BOM 重寫。
+- 0.4.4 起預設 inbox 涵蓋全部自動寫入。 升級後，agent 自己記下的「經驗 / 踩坑」類內容會先進入收件匣、變成 pending 等你審核，通過之後才會被注入；設 inbox: false 可以恢復舊的直接寫入行為。明確的 remember 工具呼叫不受影響，仍然直寫。
 
 BOM 崩潰（0.4.0 已修）
 
@@ -412,17 +413,26 @@ UI
 
 在 Windows 10/11 + Node 24.21.0（有 node:sqlite）、隔離資料目錄與連接埠上實測，真實記憶庫未被觸碰：
 
-套件                            結果                  說明
-----------------------------------------------------
-tests/core-audit/run-all.mjs  220/220 全綠（12 個檔案）  CRUD、編號、TTL、遷移、備份保留、降級狀態、併發、WAL
-tests/http-audit.mjs          65/67               剩餘 2 條紅是審計腳本自身的矛盾：A37 與 B5
-tests/static-audit.mjs        25/27               S26/S27 是已知誤報；手動執行，不進 CI
-tests/regression-0.4.4.mjs    全綠                  本批新寫的驗收用例
+* tests/core-audit/run-all.mjs
+    結果: 220/220 全綠（12 個檔案）
+    說明: CRUD、編號、TTL、遷移、備份保留、降級狀態、併發、WAL
+
+* tests/http-audit.mjs
+    結果: 67/67
+    說明: 0.4.5 修掉了審計腳本自身的三處測試問題（A37 的計數假設、B5 的過期斷言、A44c 忽略 node:sqlite 實驗性警告）；現在真失敗也會非零退出
+
+* tests/static-audit.mjs
+    結果: 25/27
+    說明: S26/S27 是已知誤報；手動執行，不進 CI
+
+* tests/regression-0.4.4.mjs
+    結果: 16/16
+    說明: 0.4.4 批次寫下的驗收用例
+
+曾經讓兩條檢查變紅的 A37 / B5 測試端問題已在 0.4.5 修掉（A37 的 touched 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 degraded 欄位，與 A2c 一致；A44c 忽略 Node 的實驗性/棄用警告）。套件現在回報 67/67，CI 裡的 A37/B5 白名單已刪除。
 
 測試端的已知問題（不是產品缺陷）：
 
-- A37 期望 inbox/bulk accept 回報 touched = 3，同時又依賴 A19/A36 留下的 pending 條目；兩個期望互斥，這條檢查無法和它自己的前置條件同時成立。
-- B5 要求 export.degraded === undefined，而 A2c 要求 export 必須帶 degraded。兩者不可能同時通過；產品保留更安全的 degraded 欄位，避免把降級匯出誤當成完整匯出。
 - S26/S27（靜態審計）只掃 core.js，因此得出 injectMode / maxEntries 沒被消費的結論 —— 它們是在 index.js 裡消費的。所以靜態審計不進 CI。
 
 0.4.3 修復
@@ -452,7 +462,7 @@ remember remove 先回顯條目，第二次帶 confirm=true 才真刪。如果�
 - 超過 128 KB 的請求主體原本會以連線重置收場，而不是預期的 413：處理器在應答前就把 socket 銷毀了。現在回傳 413 並排空請求主體。
 - server.js 註解裡一個壞字元已替換。
 
-驗證：核心層與 HTTP 回歸各 39 / 30 項全過（隔離資料目錄與連接埠）；4 程序併發跑 3 輪，每輪 101 條、revision 101；庫遺失、庫損毀、JSON 遷移、備份、編號一致性均檢查；記憶頁用無頭 Edge 實渲染，無未翻譯鍵、條目內容無 XSS。真實庫未受影響（前後都是 59 條，WAL 0 位元組）。
+驗證（0.4.3 當時的舊口徑，保留存檔）：核心層與 HTTP 回歸各 39 / 30 項全過（隔離資料目錄與連接埠）；4 程序併發跑 3 輪，每輪 101 條、revision 101；庫遺失、庫損毀、JSON 遷移、備份、編號一致性均檢查；記憶頁用無頭 Edge 實渲染，無未翻譯鍵、條目內容無 XSS。真實庫未受影響（前後都是 59 條，WAL 0 位元組）。套件後來擴容了：目前總數是 core 220 項、HTTP 67 項、static 27 項（見「0.4.4 修復」裡的 驗證 一節）。
 
 0.4.2 維護修復
 ----------

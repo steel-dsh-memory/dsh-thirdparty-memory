@@ -6,7 +6,7 @@ DSH 第三方長期記憶外掛（非官方）· 完整教學
 繁體中文版。英文根文件：tutorial.md · 简体中文：tutorial.zh-CN.md。
 每種語言都同時提供純文字版（tutorial.txt、tutorial.zh-CN.txt、tutorial.zh-TW.txt）。
 
-版本：0.4.4（2026-11-12）。
+版本：0.4.5（2026-11-12）。
   > 聯絡方式：受網路環境限制，不常看 GitHub，請透過中國大陸社交平台：抖音（非 TikTok）Steelgang、QQ 2278998874 聯繫。請使用 English 或簡體中文交流。 新增好友時請備註：GitHub 使用者名稱 + 專案名稱 + 來意。 請遵循 UTC+8 中國北京時間溝通，否則可能無法接到訊息。
 
 這份教學的目標是寫成「你唯一需要讀的那一份文件」：安裝、設定、日常使用、出問題怎麼修。
@@ -430,6 +430,16 @@ UI。 非法數字就地報錯、不送出請求；6 秒輪詢不再覆蓋未儲
 
 0.4.4 驗證。 core-audit 12 個檔案 / 220 項全綠；http-audit 65/67（剩餘 A37、B5 兩條是審計腳本自身的矛盾）；static-audit 25/27（S26/S27 為已知誤報，手動執行：node tests/static-audit.mjs）。CI 跑 node --check、匯出冒煙、core-audit 與 http-audit。
 
+2.13 0.4.5 修復
+
+0.4.5 不改外掛邏輯：這是測試工具鏈與文件版本。升級仍是 drop-in 替換外掛檔案，記憶庫不會被碰。
+
+審計腳本自身的測試問題修好了。 A37 的 touched 改為按呼叫前的 pending 數斷言；B5 改為要求更安全的 degraded 欄位（與 A2c 一致）；A44c 忽略 Node 的實驗性/棄用警告。HTTP 套件現在是 67/67，CI 裡 A37/B5 的白名單已刪除。
+
+審計失敗現在真的會失敗。 tests/core-audit/run-all.mjs 與 tests/http-audit.mjs 在檢查失敗時設定 process.exitCode，本機手動跑不會再「紅著報綠」；CI 門檻收緊為 67/67，新出現的紅項會讓流水線變紅，而不是被當成「已知問題」列著。
+
+README 的驗證數字與升級說明修正。 目前總數是 core 220/220、HTTP 67/67、static 25/27（S26/S27 為已知誤報，手動執行）、regression 16/16；0.4.3 時期「39 + 30 項」的舊口徑已明確標註為舊數字。升級章節補了一句：0.4.4 起預設 inbox 涵蓋全部自動寫入 —— agent 自動記錄的內容會先進收件匣待審核，inbox: false 可恢復舊的直接寫入行為，明確的 remember 呼叫仍然直寫。
+
 ------------------------------------------------------------------------
 
 3. 日常使用
@@ -652,7 +662,7 @@ persona 是讓助手「像認識你」的那一類，也是最容易寫歪的一
     ├── attach.ps1            多宿主安裝腳本（junction + bundles + patch + 對等相依 + dataFile）
     ├── build-single-exe.ps1  重建單檔管理器
     ├── build-release.ps1     打包 release\dsh-thirdparty-memory-<版本>.zip（含敏感路徑檢查）
-    ├── RELEASE-0.4.4.txt     本版本的發佈說明（英文為根，附中文補充）
+    ├── RELEASE-0.4.5.txt     本版本的發佈說明（英文為根，附中文補充；更早版本見 docs/releases/）
     ├── tools/md2txt.mjs      從 .md 原始檔重新產生 .txt 文件
     ├── tests/                審計與回歸套件（CI 跑 core-audit 與 http-audit；static-audit 手動）
     ├── manager/

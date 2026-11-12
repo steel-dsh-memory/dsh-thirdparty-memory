@@ -38,3 +38,5 @@ for (const item of summary) {
   if (item.status !== 0) failed += 1
 }
 console.log(`\nTOTAL test files=${summary.length} 非零退出=${failed}`)
+// 0.4.5：有失败就非零退出。以前这里永远 exit 0，本地手动跑会误以为"全过"。
+process.exitCode = failed > 0 ? 1 : 0

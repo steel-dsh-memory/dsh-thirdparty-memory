@@ -20,7 +20,7 @@ DeepSeek Harness（DSH）的第三方长期记忆插件。 内部标识：dsh-th
   > - 核心理念：Never Trust the LLM. 记忆是用户的数字资产，不是模型的免费养料。
   > - 数据存储：单个 SQLite 文件，永不上云。卸载 / 更换模型？带走文件，你的记忆就永生。
 
-    版本     : 0.4.4（2026-11-12）· MIT · 非官方
+    版本     : 0.4.5（2026-11-12）· MIT · 非官方
     支持平台 : DSH Desktop（MSIX）· DeepSeek Harness 便携版（Electron）· 命令行 `dsh web`
     运行环境 : Node.js 18+（exe 自带 Node 24；SQLite 存储需要 `node:sqlite`，即 Node 22.5+）
     存储方式 : 本地 SQLite（`node:sqlite` 内置，WAL 模式）—— 无服务端、无云端、无遥测
@@ -351,6 +351,7 @@ vectorMinCos  0.3   余弦下限；调低 = 匹配更多（也更松）
 - 更新/替换插件目录只换代码。 不覆盖、不迁移、不改名、不删除任何记忆文件。
 - attach.ps1 会保留已有的 dataFile。 不传 -DataFile 时它不动配置里的路径；以前它会删掉那一行，等于把记忆库偷偷挪了位置。
 - attach.ps1 -Repair 会扫描每个 DSH profile 的 package.json，带 UTF-8 BOM 的先备份、再去掉 BOM 重写。
+- 0.4.4 起默认 inbox 覆盖全部自动写入。 升级后，agent 自己记下的「经验 / 踩坑」类内容会先进入收件箱，变成 pending 待你审批，通过之后才会被注入；设 inbox: false 可以恢复旧的直接写入行为。显式 remember 工具调用不受影响，仍然直写。
 
 BOM 崩溃（0.4.0 已修）
 
@@ -412,17 +413,26 @@ UI
 
 在 Windows 10/11 + Node 24.21.0（有 node:sqlite）、隔离数据目录与端口上实测，真实记忆库未被触碰：
 
-套件                            结果                  说明
-----------------------------------------------------
-tests/core-audit/run-all.mjs  220/220 全绿（12 个文件）  CRUD、编号、TTL、迁移、备份保留、降级状态、并发、WAL
-tests/http-audit.mjs          65/67               剩余 2 条红是审计脚本自身的矛盾：A37 与 B5
-tests/static-audit.mjs        25/27               S26/S27 是已知误报；手动运行，不进 CI
-tests/regression-0.4.4.mjs    全绿                  本批新写的验收用例
+* tests/core-audit/run-all.mjs
+    结果: 220/220 全绿（12 个文件）
+    说明: CRUD、编号、TTL、迁移、备份保留、降级状态、并发、WAL
+
+* tests/http-audit.mjs
+    结果: 67/67
+    说明: 0.4.5 修掉了审计脚本自身的三处测试问题（A37 的计数假设、B5 的过期断言、A44c 忽略 node:sqlite 实验性警告）；现在真失败也会非零退出
+
+* tests/static-audit.mjs
+    结果: 25/27
+    说明: S26/S27 是已知误报；手动运行，不进 CI
+
+* tests/regression-0.4.4.mjs
+    结果: 16/16
+    说明: 0.4.4 批次写下的验收用例
+
+曾经让两条检查变红的 A37 / B5 测试侧问题已在 0.4.5 修掉（A37 的 touched 改为按调用前的 pending 数断言；B5 改为要求更安全的 degraded 字段，与 A2c 一致；A44c 忽略 Node 的实验性/弃用警告）。套件现在报 67/67，CI 里的 A37/B5 白名单已删除。
 
 测试侧的已知问题（不是产品缺陷）：
 
-- A37 期望 inbox/bulk accept 报 touched = 3，同时又依赖 A19/A36 留下的 pending 条目；两个期望互斥，这条检查无法和它自己的前置条件同时成立。
-- B5 要求 export.degraded === undefined，而 A2c 要求 export 必须带 degraded。两者不可能同时通过；产品保留更安全的 degraded 字段，避免把降级导出误当成完整导出。
 - S26/S27（静态审计）只扫 core.js，因此得出 injectMode / maxEntries 没被消费的结论 —— 它们是在 index.js 里消费的。所以静态审计不进 CI。
 
 0.4.3 修复
@@ -452,7 +462,7 @@ remember remove 先回显条目，第二次带 confirm=true 才真删。如果�
 - 超过 128 KB 的请求体原来会以连接重置收场，而不是预期的 413：处理器在应答前就把 socket 销毁了。现在返回 413 并排空请求体。
 - server.js 注释里一个坏字符已替换。
 
-验证：核心层与 HTTP 回归各 39 / 30 项全过（隔离数据目录与端口）；4 进程并发跑 3 轮，每轮 101 条、revision 101；库丢失、库损坏、JSON 迁移、备份、编号一致性均检查；记忆页用无头 Edge 实渲染，无未翻译键、条目内容无 XSS。真实库未受影响（前后都是 59 条，WAL 0 字节）。
+验证（0.4.3 当时的旧口径，保留存档）：核心层与 HTTP 回归各 39 / 30 项全过（隔离数据目录与端口）；4 进程并发跑 3 轮，每轮 101 条、revision 101；库丢失、库损坏、JSON 迁移、备份、编号一致性均检查；记忆页用无头 Edge 实渲染，无未翻译键、条目内容无 XSS。真实库未受影响（前后都是 59 条，WAL 0 字节）。套件后来扩容了：当前总数是 core 220 项、HTTP 67 项、static 27 项（见「0.4.4 修复」里的 验证 一节）。
 
 0.4.2 维护修复
 ----------

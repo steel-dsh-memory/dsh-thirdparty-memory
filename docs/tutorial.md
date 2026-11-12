@@ -5,7 +5,7 @@
 English root copy. 简体中文: [`tutorial.zh-CN.md`](tutorial.zh-CN.md) · 繁體中文: [`tutorial.zh-TW.md`](tutorial.zh-TW.md).
 Plain-text versions ship alongside every language (`tutorial.txt`, `tutorial.zh-CN.txt`, `tutorial.zh-TW.txt`).
 
-Version: **0.4.4 (2026-11-12)**.
+Version: **0.4.5 (2026-11-12)**.
 > Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose. Please communicate on UTC+8 (China Standard Time), otherwise I may not receive your messages.
 
 
@@ -418,6 +418,30 @@ audit script itself); static-audit **25/27** (S26/S27 are false positives; run i
 manually with `node tests/static-audit.mjs`). CI runs `node --check`, the export
 smoke test, core-audit and http-audit.
 
+### 2.13 0.4.5 fixes
+
+0.4.5 changes no plugin logic: it is a test-harness and documentation release.
+Upgrading is still a drop-in replacement and the memory store is never touched.
+
+**The audit's own test-side defects are fixed.** A37's `touched` assumption now
+follows the pending count captured before the call, B5 now requires the safer
+`degraded` field (matching A2c), and A44c ignores Node's
+experimental/deprecation warnings. The HTTP suite is **67/67**, and the CI
+allow-list for A37/B5 was deleted.
+
+**A failed audit now fails.** `tests/core-audit/run-all.mjs` and
+`tests/http-audit.mjs` set `process.exitCode` when a check fails, so a manual run
+can no longer look green on a red suite. The CI gates are tightened to 67/67, so
+a new red check fails the pipeline instead of being listed as "known".
+
+**README numbers and the upgrade note were corrected.** The current totals are
+core **220/220**, HTTP **67/67**, static **25/27** (S26/S27 false positives,
+manual) and regression **16/16**; the old 0.4.3-era "39 + 30 checks" line is
+labelled as the old count. The upgrade section now also says that since 0.4.4 the
+default inbox covers every automatic write: auto-recorded notes wait in the
+inbox for approval, `inbox: false` restores the old direct-write behaviour, and
+explicit `remember` calls still write directly.
+
 ---
 
 ## 3. Daily use
@@ -586,7 +610,7 @@ dsh-thirdparty-memory/
 ├── attach.ps1            multi-host installer (junction + bundles + patch + peer + dataFile)
 ├── build-single-exe.ps1  rebuilds the single-file manager
 ├── build-release.ps1     packages release\dsh-thirdparty-memory-<version>.zip (+ leak check)
-├── RELEASE-0.4.4.txt     release notes for this version (English root + Chinese notes)
+├── RELEASE-0.4.5.txt     release notes for this version (English root + Chinese notes; older ones in docs/releases/)
 ├── tools/md2txt.mjs      regenerates the .txt docs from the .md sources
 ├── tests/                audit + regression suites (CI runs core-audit and http-audit; static-audit is manual)
 ├── manager/

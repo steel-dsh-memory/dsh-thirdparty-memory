@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.5] — 2026-11-12
+
+Test-harness and documentation release. The plugin logic is unchanged from
+0.4.4; upgrading is a drop-in replacement and the memory store is not touched.
+
+### Fixed
+
+- The HTTP audit's own three test-side defects were corrected: A37's `touched`
+  count assumption now follows the pending count captured before the call, B5's
+  outdated assertion now requires the safer `degraded` field (matching A2c), and
+  A44c ignores Node's experimental/deprecation warnings. The red baseline is
+  gone — the suite reports **67/67** — and the CI allow-list for A37/B5 was
+  deleted.
+- `tests/core-audit/run-all.mjs` and `tests/http-audit.mjs` now set
+  `process.exitCode` when a check fails, so a manual run no longer looks green
+  on a red suite.
+
+### Changed
+
+- README (three languages) verification numbers and the upgrade note were
+  corrected: core 220/220, HTTP 67/67, static 25/27, regression 16/16; the old
+  0.4.3-era "39 + 30 checks" line is now explicitly labelled as the old count.
+  The upgrade section states that since 0.4.4 the default inbox covers every
+  automatic write — auto-recorded notes wait for approval, `inbox: false`
+  restores the old behaviour, and explicit `remember` calls still write
+  directly.
+- The CI HTTP gate is tightened from "failures ⊆ {A37,B5}" to "67/67"; the
+  allow-list is gone, so a new red check fails the pipeline. `RELEASE-0.4.5.txt`
+  documents this batch, and the tutorials gained §2.13.
+
 ## [0.4.4] — 2026-11-12
 
 Correctness, hardening and release-engineering release on top of 0.4.3. No

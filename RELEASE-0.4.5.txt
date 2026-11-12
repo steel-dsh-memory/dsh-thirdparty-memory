@@ -1,0 +1,124 @@
+DSH Third-Party Long-Term Memory Plugin — Release 0.4.5
+=======================================================
+
+Released  : 2026-11-12
+Licence   : MIT
+Status    : unofficial third-party project, not affiliated with DeepSeek
+            or its official teams
+
+Scope
+-----
+Test-harness and documentation release. The plugin logic is unchanged from
+0.4.4 (the code only carries the new version string). Upgrading from 0.4.4 is a
+drop-in replacement of the plugin files; the memory store is not touched. The
+manager exe is rebuilt only because its embedded sources carry the new version.
+
+Changes
+-------
+1. The HTTP audit's own three test-side defects were corrected.
+
+   A37 assumed touched = 3 while it also relied on pending entries left by
+   A19/A36; it now asserts against the pending count captured before the call.
+   B5 required export.degraded === undefined, while A2c requires the export to
+   include degraded; B5 now requires the safer degraded field, matching the
+   product behaviour.
+   A44c treated Node's node:sqlite ExperimentalWarning on stderr as a failure;
+   it now ignores experimental / deprecation warnings.
+   Result: the red baseline is gone, the suite reports 67/67, and the CI
+   allow-list for A37/B5 was deleted.
+
+2. core-audit and http-audit now exit non-zero when a check fails.
+
+   tests/core-audit/run-all.mjs and tests/http-audit.mjs set process.exitCode,
+   so a manual run can no longer look green on a red suite. (CI already relied on
+   the result files, but a human shell only reads the exit code.)
+
+3. README verification numbers and the upgrade note were corrected.
+
+   Current totals: core-audit 220/220 (12 files), http-audit 67/67, static-audit
+   25/27 (manual), regression 16/16. The old 0.4.3-era "39 + 30 checks" line is
+   now labelled as the old count. The upgrade section states that since 0.4.4 the
+   default inbox covers every automatic write: auto-recorded notes wait in the
+   inbox for approval, inbox: false restores the old direct-write behaviour, and
+   explicit remember calls still write directly.
+
+4. The CI HTTP gate is tightened to 67/67.
+
+   The "failures ⊆ {A37, B5}" allow-list is gone, so a new red check fails the
+   pipeline instead of being listed as known. static-audit stays out of CI
+   (S26/S27 are known false positives) and is run manually.
+
+Verification performed on Windows, Node 24.21.0 (node:sqlite available)
+------------------------------------------------------------------------
+- core-audit: 12 files, 220/220 checks green
+- http-audit: 67/67 checks green (after the A37 / B5 / A44c test fixes)
+- static-audit: 25/27 by hand; the only reds are S26/S27, known false positives
+  (the suite scans only core.js and misses the index.js consumers)
+- regression-0.4.4.mjs: 16/16 green
+- the real store was not touched by any suite
+
+Upgrade
+-------
+1. Replace the plugin files (or unpack the new manager exe). Keep your data
+   folder as-is — the upgrade swaps code only and never overwrites, migrates,
+   renames or deletes a memory file.
+2. Re-run the installer if needed: attach.ps1 -Repair, then attach.ps1 (or the
+   exe's "Attach to DSH…").
+3. Restart DSH. Since 0.4.4 the default inbox covers every automatic write, so
+   notes the agent records on its own (the "lessons / pitfalls" it used to write
+   straight in) wait in the review inbox as pending until you accept them. Set
+   inbox: false to restore the old direct-write behaviour; explicit remember
+   calls are unaffected.
+4. The exe is unsigned; Windows SmartScreen may warn. Build it yourself with
+   build-single-exe.ps1 if you prefer.
+
+Known limits
+------------
+- static-audit's S26/S27 are known false positives: the suite scans only
+  core.js, while injectMode / maxEntries are consumed in index.js. The suite is
+  manual and 25/27 is the expected result.
+- judgeMode is still a configuration label only: model / rules / off all run the
+  same rule-based extraction when autoExtract is on. Documented, not changed.
+- The JSON fallback path (runtimes without node:sqlite) still has no revision
+  lock, so two writers can overwrite each other there.
+- Corruption is detected when a process opens the store, not while a handle is
+  already open; the WAL checkpoint after commit can be skipped while another
+  connection is reading (busy, not an error).
+- Retrieval is literal matching (CJK n-grams plus local hash vectors), not
+  synonym-level semantics; the "extract everything about X" phrase pattern is
+  Chinese-only.
+- The manager exe is unsigned; SmartScreen warnings are expected.
+
+Files
+-----
+README (three languages, .md + .txt)  docs/tutorial (three languages)
+CHANGELOG.md  RELEASE-0.4.5.txt  tests/http-audit.mjs
+tests/core-audit/run-all.mjs  .github/workflows/syntax.yml
+package.json  manager/DshMemoryManager.cs  dsh-memory-manager.exe
+
+中文补充
+--------
+本版是 0.4.5：测试工具链与文档版本。插件逻辑与 0.4.4 相同（代码只多了版本
+号），升级仍是 drop-in 替换插件文件，记忆库不会被碰。
+
+四条改动：
+  1. 修掉 http-audit 自身的三处测试问题：A37 的 touched 计数假设（改为按调用前
+     pending 数断言）、B5 的过期断言（改为要求更安全的 degraded 字段，与 A2c
+     一致）、A44c 忽略 node:sqlite 实验性警告。红基线归零，67/67 全绿，CI 的
+     A37/B5 白名单删除。
+  2. core-audit / http-audit 失败时真正非零退出（process.exitCode），本地手动跑
+     不再误以为全过。
+  3. README 三语验证数字与升级说明修正：core 220/220、http 67/67、static 25/27、
+     regression 16/16；0.4.3 时期「39 + 30 项」旧口径已标注为旧数字；升级章节
+     补上「0.4.4 起默认 inbox 覆盖全部自动写入」的说明（inbox: false 恢复旧行为，
+     remember 工具直写不受影响）。
+  4. CI 门禁收紧为 67/67，白名单删除；static-audit 仍不进 CI（S26/S27 误报），
+     手动运行。
+
+验证（Windows 10/11 + Node 24.21.0，隔离库与端口，真实库未受影响）：
+  core-audit 12 文件 220/220 全绿；http-audit 67/67 全绿；static-audit 25/27
+  （S26/S27 已知误报，手动）；regression 16/16 全绿。
+
+升级：替换插件文件 / 解压新 exe → 需要时跑 attach.ps1 -Repair 与 attach.ps1 →
+重启 DSH。已知限制：static 的 S26/S27 误报、judgeMode 仍只是配置标签、
+JSON fallback 无 revision 锁、检索是字面匹配、exe 未签名。

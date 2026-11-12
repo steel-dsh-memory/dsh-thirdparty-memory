@@ -6,7 +6,7 @@ DSH 第三方长期记忆插件（非官方）· 完整教程
 简体中文版。英文根文档：tutorial.md · 繁體中文：tutorial.zh-TW.md。
 每种语言都同时提供纯文本版（tutorial.txt、tutorial.zh-CN.txt、tutorial.zh-TW.txt）。
 
-版本：0.4.4（2026-11-12）。
+版本：0.4.5（2026-11-12）。
   > 联系方式：受限于网络环境，不常看 GitHub，请通过中国大陆社交平台：抖音（非 TikTok）Steelgang、QQ 2278998874 联系。请使用 English 或者简体中文交流。 添加好友时请备注：GitHub 用户名 + 项目名 + 来意。 请遵循 UTC+8 中国北京时间沟通，否则可能无法接到消息。
 
 这份教程的目标是写成「你唯一需要读的那一份文档」：安装、配置、日常使用、出问题怎么修。
@@ -430,6 +430,16 @@ UI。 非法数字就地报错、不发送请求；6 秒轮询不再覆盖未保
 
 0.4.4 验证。 core-audit 12 个文件 / 220 项全绿；http-audit 65/67（剩余 A37、B5 两条是审计脚本自身的矛盾）；static-audit 25/27（S26/S27 为已知误报，手动运行：node tests/static-audit.mjs）。CI 跑 node --check、导出冒烟、core-audit 与 http-audit。
 
+2.13 0.4.5 修复
+
+0.4.5 不改插件逻辑：这是测试工具链与文档版本。升级仍是 drop-in 替换插件文件，记忆库不会被碰。
+
+审计脚本自身的测试问题修好了。 A37 的 touched 改为按调用前的 pending 数断言；B5 改为要求更安全的 degraded 字段（与 A2c 一致）；A44c 忽略 Node 的实验性/弃用警告。HTTP 套件现在是 67/67，CI 里 A37/B5 的白名单已删除。
+
+审计失败现在真的会失败。 tests/core-audit/run-all.mjs 与 tests/http-audit.mjs 在检查失败时设置 process.exitCode，本地手动跑不会再「红着报绿」；CI 门禁收紧为 67/67，新出现的红项会让流水线变红，而不是被当成「已知问题」列着。
+
+README 的验证数字与升级说明修正。 当前总数是 core 220/220、HTTP 67/67、static 25/27（S26/S27 为已知误报，手动运行）、regression 16/16；0.4.3 时期「39 + 30 项」的旧口径已明确标注为旧数字。升级章节补了一句：0.4.4 起默认 inbox 覆盖全部自动写入 —— agent 自动记录的内容会先进收件箱待审批，inbox: false 可恢复旧的直接写入行为，显式 remember 调用仍然直写。
+
 ------------------------------------------------------------------------
 
 3. 日常使用
@@ -637,7 +647,7 @@ junction 正常吗？  <profile>\node_modules\dsh-thirdparty-memory             
     ├── attach.ps1            多宿主安装脚本（junction + bundles + patch + 对等依赖 + dataFile）
     ├── build-single-exe.ps1  重建单文件管理器
     ├── build-release.ps1     打包 release\dsh-thirdparty-memory-<版本>.zip（含敏感路径检查）
-    ├── RELEASE-0.4.4.txt     本版本的发布说明（英文为根，附中文补充）
+    ├── RELEASE-0.4.5.txt     本版本的发布说明（英文为根，附中文补充；更早版本见 docs/releases/）
     ├── tools/md2txt.mjs      从 .md 源文件重新生成 .txt 文档
     ├── tests/                审计与回归套件（CI 跑 core-audit 与 http-audit；static-audit 手动）
     ├── manager/

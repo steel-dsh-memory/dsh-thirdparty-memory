@@ -32,7 +32,7 @@ using System.Windows.Forms;
 /// </summary>
 static class Program
 {
-    const string Version = "0.4.4";
+    const string Version = "0.4.5";
     const int DefaultPort = 7891;
     const string DefaultHost = "127.5.0.1";
     const string MutexName = "Global\\dsh-thirdparty-memory-manager";

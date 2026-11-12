@@ -12,7 +12,7 @@
 
   Usage:
     powershell -ExecutionPolicy Bypass -File build-release.ps1
-    powershell -ExecutionPolicy Bypass -File build-release.ps1 -Version 0.4.4
+    powershell -ExecutionPolicy Bypass -File build-release.ps1 -Version 0.4.5
 #>
 [CmdletBinding()]
 param(
@@ -52,7 +52,7 @@ $files = @(
   "README.zh-CN.txt",
   "README.zh-TW.md",
   "README.zh-TW.txt",
-  "RELEASE-0.4.4.txt",
+  "RELEASE-$Version.txt",
   "LICENSE",
   "package.json",
   "cordis.patch.yml",

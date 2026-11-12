@@ -436,11 +436,15 @@ const fullEntry = await findEntry(PORT_A, FULL)
     { content: "bulk pending 2", status: "pending", source: "auto" },
     { content: "bulk pending 3", status: "pending", source: "auto" },
   ])
+  // 0.4.5：touched 是"本次批量操作碰到的 pending 条数"，不是"本用例种了几条"——
+  // A19 留下的 pending、A36 edit 保持 pending 的条目也会被这次 accept 收走。
+  // 先记录调用前的 pending 数，断言 touched 等于这个增量，避免测试自身假设过期。
+  const pendingBefore = (json(await req(PORT_A, "GET", "/api/state")).entries ?? []).filter((e) => e.status === "pending").length
   const r = await req(PORT_A, "POST", "/api/inbox/bulk", { body: { action: "accept" } })
   const s = json(r)
   const entries = s.state?.entries ?? []
   const touchedOk = ["bulk pending 1", "bulk pending 2", "bulk pending 3"].every((c) => entries.find((e) => e.content === c)?.status === "active")
-  check("A37", "inbox/bulk accept 全部接受 + touched 计数", r.status === 200 && s.touched === 3 && touchedOk, "touched=3 + 3 条 active", `status=${statusOf(r)} touched=${s.touched} allActive=${touchedOk}`)
+  check("A37", "inbox/bulk accept 全部接受 + touched 计数", r.status === 200 && s.touched === pendingBefore && touchedOk, `touched=${pendingBefore}（调用前 pending 数）+ 3 条 active`, `status=${statusOf(r)} touched=${s.touched} pendingBefore=${pendingBefore} allActive=${touchedOk}`)
 
   seed([
     { content: "bulk reject 1", status: "pending", source: "auto" },
@@ -501,8 +505,10 @@ const fullEntry = await findEntry(PORT_A, FULL)
 {
   check("A44", "SQLite 库文件已创建且非空", existsSync(DATA_A) && readFileSync(DATA_A).length > 0, "存在且 >0 字节", existsSync(DATA_A) ? `${readFileSync(DATA_A).length} bytes` : "missing")
   check("A44b", "未生成 legacy JSON（迁移源不存在时）", !existsSync(LEGACY_A), "legacy 不存在", existsSync(LEGACY_A) ? "存在" : "不存在")
-  const errLines = srvA.logs.filter((line) => line.includes("[stderr]") || line.includes("[exit]"))
-  check("A44c", "服务端测试期间无 stderr / 异常退出", errLines.length === 0, "无", brief(errLines.join(" ")) || "无")
+  // 0.4.5：node:sqlite 在部分 Node 版本会往 stderr 打 ExperimentalWarning，
+  // 这是运行环境噪声、不是服务异常；只看真正的错误行。
+  const errLines = srvA.logs.filter((line) => (line.includes("[stderr]") || line.includes("[exit]")) && !/ExperimentalWarning|DeprecationWarning|\(node:\d+\)/.test(line))
+  check("A44c", "服务端测试期间无异常 stderr / 异常退出（忽略 node 实验性/弃用警告）", errLines.length === 0, "无", brief(errLines.join(" ")) || "无")
 }
 
 await stopServer(srvA)
@@ -534,8 +540,10 @@ await stopServer(srvA)
   check("B4", "所有被拒写操作后垃圾库文件字节不变", hashBefore === hashAfter, "hash 相同", `same=${hashBefore === hashAfter}`)
   const exp = await req(PORT_B, "GET", "/api/export")
   const ejson = json(exp)
-  check("B5", "降级时 export 返回空 entries 且无 degraded 标记（用户可能误以为导出完整）", exp.status === 200 && ejson.entries?.length === 0 && ejson.degraded === undefined,
-    "应带 degraded 标记", `status=${statusOf(exp)} entries=${ejson.entries?.length} hasDegraded=${ejson.degraded !== undefined}`)
+  // 0.4.5：这条断言原来写的是 "degraded === undefined"（记录的是 0.4.3 的旧 bug），
+  // 而 A2c 要求导出必须带 degraded —— 两者互斥。导出格式修好后按新契约断言。
+  check("B5", "降级时 export 返回空 entries 且带 degraded 标记（不能伪装成完整备份）", exp.status === 200 && ejson.entries?.length === 0 && Boolean(ejson.degraded) && String(ejson.degraded?.reason ?? "").includes("SQLite"),
+    "entries=[] + degraded.reason 含 SQLite", `status=${statusOf(exp)} entries=${ejson.entries?.length} degraded=${brief(ejson.degraded)}`)
   // B6 先查再停：stopServer 会主动结束进程并写一条 [exit]，放在停止之后查等于必然失败。
   check("B6", "降级服务测试期间无异常退出", !srvB.logs.some((line) => line.includes("[exit]")), "无异常退出", brief(srvB.logs.join(" ")) || "无")
   await stopServer(srvB)
@@ -554,3 +562,6 @@ for (const r of results) {
 }
 writeFileSync(join(HERE, "http-audit-result.json"), JSON.stringify({ rid: RID, tmpA: TMP_A, tmpB: TMP_B, results }, null, 2), "utf8")
 console.log(`\n结果文件：${join(HERE, "http-audit-result.json")}`)
+// 0.4.5：失败必须反映到退出码，否则本地手动跑会误以为全过（CI 靠 result JSON 兜底，
+// 但人的 shell 只认 exit code）。
+process.exitCode = results.some((row) => !row.ok) ? 1 : 0
