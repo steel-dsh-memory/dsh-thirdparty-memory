@@ -5,7 +5,7 @@
 English root copy. 简体中文: [`tutorial.zh-CN.md`](tutorial.zh-CN.md) · 繁體中文: [`tutorial.zh-TW.md`](tutorial.zh-TW.md).
 Plain-text versions ship alongside every language (`tutorial.txt`, `tutorial.zh-CN.txt`, `tutorial.zh-TW.txt`).
 
-Version: **0.4.6 (2026-11-13)**.
+Version: **0.4.7 (2026-11-13)**.
 > Contact: Due to network conditions, I do not check GitHub often. Please reach me via mainland China social platforms: Douyin (not TikTok) Steelgang, or QQ 2278998874. Please communicate in English or Simplified Chinese. When adding me, please follow the format: GitHub username + project name + purpose. Please communicate on UTC+8 (China Standard Time), otherwise I may not receive your messages.
 
 
@@ -610,7 +610,7 @@ dsh-thirdparty-memory/
 ├── attach.ps1            multi-host installer (junction + bundles + patch + peer + dataFile)
 ├── build-single-exe.ps1  rebuilds the single-file manager
 ├── build-release.ps1     packages release\dsh-thirdparty-memory-<version>.zip (+ leak check)
-├── RELEASE-0.4.6.txt     release notes for this version (English root + Chinese notes; older ones in docs/releases/)
+├── RELEASE-0.4.7.txt     release notes for this version (English root + Chinese notes; older ones in docs/releases/)
 ├── tools/md2txt.mjs      regenerates the .txt docs from the .md sources
 ├── tests/                audit + regression suites (CI runs core-audit and http-audit; static-audit is manual)
 ├── manager/

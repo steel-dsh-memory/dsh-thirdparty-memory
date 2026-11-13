@@ -12,7 +12,7 @@
 
   Usage:
     powershell -ExecutionPolicy Bypass -File build-release.ps1
-    powershell -ExecutionPolicy Bypass -File build-release.ps1 -Version 0.4.6
+    powershell -ExecutionPolicy Bypass -File build-release.ps1 -Version 0.4.7
 #>
 [CmdletBinding()]
 param(

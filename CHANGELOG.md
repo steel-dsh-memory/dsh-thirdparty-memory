@@ -4,6 +4,67 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.7] — 2026-11-13
+
+Security and correctness release for the two P1 “load-bearing” findings and four
+severe P2 findings from the 0.4.6 audit. The scope is deliberately limited:
+three lighter P2s remain, and all P3s are untouched. No storage-format change,
+no configuration migration; upgrading is a drop-in replacement of the plugin
+files and the memory store is not touched.
+
+### Fixed
+
+- **P1-1 — manager default directory on Chinese Windows.** The automatic
+  default/legacy store directory no longer fails the ASCII-only name check;
+  that check still applies when the user explicitly chooses a directory.
+- **P1-2 — failed legacy JSON migration no longer becomes a silent empty
+  library.** When migration fails, the readable old JSON entries are returned
+  with `degraded` set, and no empty SQLite file is created over the old data.
+- **P2-1 — cross-session ephemeral isolation.** Ephemeral entries bound to
+  another session are excluded from the `relevant` index, from `dormant`/rest,
+  and from explicit recall; they can no longer leak into another session’s
+  prompt or preview. The current session’s ephemeral entries and legacy
+  unbound entries keep their existing behaviour.
+- **P2-2 — `injectMode: all` is now genuinely all.** `core.selectEntries`
+  accepts an `all` option; global/persona entries go to `always`, the current
+  session’s ephemeral entries stay ephemeral, and every other live entry goes
+  to `matched` (bounded by `maxEntries`). Keyword thresholds, project activation
+  and `showIndex` no longer suppress ordinary/project memory in `all` mode.
+- **P2-3 — vector decimals are preserved.** `vectorWeight` and `vectorMinCos`
+  are declared with `integer: false`, so `0.3`/`0.5` are no longer rounded to
+  `0`/`1`; the values in `cordis.patch.yml` now take effect.
+- **P2-4 — `attach.ps1` no longer resets user configuration.** An existing
+  `thirdparty-memory` block is left byte-for-byte untouched when `dataFile`
+  does not change; a changed `dataFile` replaces/inserts only that line and
+  preserves `enabled`, `autoExtract`, `inbox`, `maxBytes`, `vectorMinCos` and
+  comments. A default block is appended only when no block exists.
+
+### Verification
+
+- `P2` regression: `node tests/p2-regression.mjs` passes.
+- core-audit: 11 files / **194/194** checks; `t02` skipped because the cloud
+  host’s SQLite lock is a known environment false positive.
+- HTTP audit: **67/67**; 0.4.4 regression: **16/16**.
+- static-audit: **26/27**; the only failure is S26, a known false positive
+  (the suite scans only `core.js`, while `injectMode` is consumed in `index.js`).
+- Windows attach fixtures cover: `dataFile` change preserving `enabled: false`
+  / `maxBytes` / `vectorMinCos`; a second attach leaving the patch hash
+  unchanged; insertion of `dataFile` when the block has none.
+- The real `F:\dsh-memory-data` store was not loaded, migrated or written by
+  this release work; `memory.json` hash and `memory.sqlite` size/mtime were
+  unchanged.
+
+### Known remaining
+
+- Memory page still parses only the YAML `enabled`/`autoExtract`/`inbox`
+  switches; preview/dashboard can disagree with the real injection config and
+  saving can overwrite `maxBytes` and similar keys (P2, lighter).
+- Manager `ChangePort` saves config and stops the old service before checking
+  whether the new port is occupied (P2, lighter).
+- `judgeMode` (`model`/`rules`/`off`) is still not in the plugin Config and all
+  modes run the same rule-based extraction (P2, lighter).
+- P3 items are untouched.
+
 ## [0.4.6] — 2026-11-13
 
 Bug-fix release for the two data-risk P2 findings from the 0.4.5 audit. Scope is

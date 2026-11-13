@@ -20,7 +20,7 @@ One master switch, automatic extraction, five kinds of memory, a review inbox, k
   > - Core belief: Never Trust the LLM. Memory is the user's digital asset, not free fodder for the model.
   > - Storage: a single SQLite file that never leaves your machine. Uninstall it, or switch models? Take the file with you — your memory lives on.
 
-    Version   : 0.4.6 (2026-11-13) · MIT · unofficial
+    Version   : 0.4.7 (2026-11-13) · MIT · unofficial
     Platforms : DSH Desktop (MSIX) · DeepSeek Harness portable (Electron) · CLI `dsh web`
     Runtime   : Node.js 18+ (the exe ships Node 24; SQLite storage needs `node:sqlite`, Node 22.5+)
     Storage   : local SQLite through the built-in `node:sqlite` (WAL) — no server, no cloud, no telemetry

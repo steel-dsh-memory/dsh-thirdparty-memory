@@ -20,7 +20,7 @@ DeepSeek Harness（DSH）的第三方長期記憶外掛。 內部識別：dsh-th
   > - 核心理念：Never Trust the LLM. 記憶是使用者的數位資產，不是模型的免費養分。
   > - 資料儲存：單一 SQLite 檔案，永不上雲。解除安裝 / 更換模型？帶走檔案，你的記憶就永生。
 
-    版本     : 0.4.6（2026-11-13）· MIT · 非官方
+    版本     : 0.4.7（2026-11-13）· MIT · 非官方
     支援平台 : DSH Desktop（MSIX）· DeepSeek Harness 可攜版（Electron）· 命令列 `dsh web`
     執行環境 : Node.js 18+（exe 自帶 Node 24；SQLite 儲存需要 `node:sqlite`，即 Node 22.5+）
     儲存方式 : 本機 SQLite（`node:sqlite` 內建，WAL 模式）—— 無伺服端、無雲端、無遙測
