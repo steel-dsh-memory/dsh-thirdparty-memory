@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.6] — 2026-11-13
+
+Bug-fix release for the two data-risk P2 findings from the 0.4.5 audit. Scope is
+deliberately limited to those two fixes; the remaining P2s (all-mode selection,
+recall isolation, vector decimal configuration) are not included in this release.
+Windows is the primary supported platform; upgrading is a drop-in replacement and
+the memory store is not touched.
+
+### Fixed
+
+- The JSON fallback now writes through a temporary file + `rename`, so a crash
+  or power loss cannot leave a half-written JSON file. A truncated/corrupt JSON
+  store now loads as `degraded` instead of a silent empty store that the next
+  write would overwrite.
+- The page-process handshake now compares `dataFile` as well as `buildId`. A
+  same-build page serving a different store is replaced instead of silently
+  exiting, so the page cannot keep editing the old database after a store switch.
+
+### Verification
+
+- Windows 10/11, Node 22.23.2: core-audit **12 files / 220 checks**, all pass;
+  HTTP audit **67/67**.
+- 0.4.4 regression remains **16/16**.
+- Targeted probes cover the two fixes: JSON truncation/degraded and atomic
+  overwrite; same-port/different-`dataFile` page handshake.
+- The real memory store was not touched by any suite.
+
 ## [0.4.5] — 2026-11-12
 
 Test-harness and documentation release. The plugin logic is unchanged from

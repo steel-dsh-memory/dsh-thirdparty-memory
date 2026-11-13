@@ -1,0 +1,75 @@
+DSH Third-Party Long-Term Memory Plugin — Release 0.4.6
+=======================================================
+
+Released  : 2026-11-13
+Licence   : MIT
+Status    : unofficial third-party project, not affiliated with DeepSeek
+            or its official teams
+
+Scope
+-----
+Bug-fix release for the two data-risk P2 findings from the 0.4.5 audit. Scope is
+deliberately limited to those two fixes; the remaining P2s (all-mode selection,
+recall isolation, vector decimal configuration) are not included in this release.
+Windows is the primary supported platform. Upgrading from 0.4.5 is a drop-in
+replacement of the plugin files; the memory store is not touched.
+
+Changes
+-------
+1. The JSON fallback is atomic and corruption is visible.
+
+   `saveStoreJson` writes a temporary file and renames it, so a crash or power
+   loss cannot leave a half-written JSON file. A truncated/corrupt JSON store
+   loads as `degraded` instead of a silent empty store that the next write would
+   overwrite. The JSON path still has no revision lock, so two concurrent
+   writers can still overwrite each other; that is unchanged and documented.
+
+2. Page handshake compares the data file.
+
+   A same-build page serving a different `dataFile` is replaced instead of
+   silently exiting, so a store switch cannot leave the page editing the old
+   database while the plugin writes the new one.
+
+Verification performed on Windows 10/11, Node 22.23.2 (node:sqlite available)
+----------------------------------------------------------------------------
+- core-audit (local, full run): 12 files, 220/220 checks green
+- http-audit: 67/67 checks green
+- regression-0.4.4.mjs: 16/16 green
+- targeted probes: JSON truncation/degraded and atomic overwrite; same-port /
+  different-dataFile page handshake
+- the real store was not touched by any suite
+
+Upgrade
+-------
+1. Replace the plugin files (or unpack the new manager exe). Keep your data
+   folder as-is — the upgrade swaps code only and never overwrites, migrates,
+   renames or deletes a memory file.
+2. Re-run the installer if needed: attach.ps1 -Repair, then attach.ps1 (or the
+   exe's "Attach to DSH…").
+3. Restart DSH. The default inbox behaviour is unchanged: automatic writes wait
+   as pending until accepted; `inbox: false` restores direct writes; explicit
+   `remember` calls are unaffected.
+4. The exe is unsigned; Windows SmartScreen may warn. Build it yourself with
+   build-single-exe.ps1 if you prefer.
+
+Known limits (unchanged)
+------------------------
+- static-audit's S26/S27 are known false positives: the suite scans only
+  core.js, while injectMode / maxEntries are consumed in index.js.
+- judgeMode is still a configuration label only; model / rules / off all run
+  the same rule-based extraction when autoExtract is on.
+- The JSON fallback path still has no revision lock, so two writers can
+  overwrite each other there.
+- Corruption is detected when a process opens the store, not while a handle is
+  already open; a WAL checkpoint may be skipped while another connection reads.
+- Retrieval is literal matching (CJK n-grams plus local hash vectors), not
+  synonym-level semantics; the "extract everything about X" phrase pattern is
+  Chinese-only.
+- The manager exe is unsigned; SmartScreen warnings are expected.
+
+Files
+-----
+README (three languages, .md + .txt)  docs/tutorial (three languages)
+CHANGELOG.md  RELEASE-0.4.6.txt  core.js  index.js  server.js  ui.html
+tests/http-audit.mjs  tests/core-audit/run-all.mjs
+tests/core-audit/t02-concurrency.mjs

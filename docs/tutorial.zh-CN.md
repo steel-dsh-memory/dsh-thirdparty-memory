@@ -5,7 +5,7 @@
 简体中文版。英文根文档：[tutorial.md](tutorial.md) · 繁體中文：[tutorial.zh-TW.md](tutorial.zh-TW.md)。
 每种语言都同时提供纯文本版（`tutorial.txt`、`tutorial.zh-CN.txt`、`tutorial.zh-TW.txt`）。
 
-版本：**0.4.5（2026-11-12）**。
+版本：**0.4.6（2026-11-13）**。
 > 联系方式：受限于网络环境，不常看 GitHub，请通过中国大陆社交平台：抖音（非 TikTok）Steelgang、QQ 2278998874 联系。请使用 English 或者简体中文交流。 添加好友时请备注：GitHub 用户名 + 项目名 + 来意。 请遵循 UTC+8 中国北京时间沟通，否则可能无法接到消息。
 
 
@@ -558,7 +558,7 @@ dsh-thirdparty-memory/
 ├── attach.ps1            多宿主安装脚本（junction + bundles + patch + 对等依赖 + dataFile）
 ├── build-single-exe.ps1  重建单文件管理器
 ├── build-release.ps1     打包 release\dsh-thirdparty-memory-<版本>.zip（含敏感路径检查）
-├── RELEASE-0.4.5.txt     本版本的发布说明（英文为根，附中文补充；更早版本见 docs/releases/）
+├── RELEASE-0.4.6.txt     本版本的发布说明（英文为根，附中文补充；更早版本见 docs/releases/）
 ├── tools/md2txt.mjs      从 .md 源文件重新生成 .txt 文档
 ├── tests/                审计与回归套件（CI 跑 core-audit 与 http-audit；static-audit 手动）
 ├── manager/

@@ -766,14 +766,22 @@ async function freePortOrExit() {
       console.error(`[dsh-thirdparty-memory] ${HOST}:${PORT} 被其他程序占用（${String(health.app ?? "未知")}），本进程退出。`)
       process.exit(1)
     }
-    if (health.buildId === BUILD_ID) {
+    const sameStore = sameFile(health.dataFile, DATA_FILE)
+    if (health.buildId === BUILD_ID && sameStore) {
       console.log(`[dsh-thirdparty-memory] 记忆页已在运行且是当前构建（${VERSION} / ${BUILD_ID}），本次启动跳过。`)
       process.exit(0)
     }
-    console.log(
-      `[dsh-thirdparty-memory] 发现旧构建页面进程 pid=${String(health.pid)}（${String(health.version)} / ${String(health.buildId)}），` +
-        `替换为当前构建 ${VERSION} / ${BUILD_ID}。`,
-    )
+    if (health.buildId === BUILD_ID) {
+      console.log(
+        `[dsh-thirdparty-memory] 同端口页面使用不同数据文件（旧：${String(health.dataFile ?? "未知")}；新：${DATA_FILE}），` +
+          `替换后启动当前构建 ${VERSION} / ${BUILD_ID}。`,
+      )
+    } else {
+      console.log(
+        `[dsh-thirdparty-memory] 发现旧构建页面进程 pid=${String(health.pid)}（${String(health.version)} / ${String(health.buildId)}），` +
+          `替换为当前构建 ${VERSION} / ${BUILD_ID}。`,
+      )
+    }
     try {
       process.kill(Number(health.pid))
     } catch {

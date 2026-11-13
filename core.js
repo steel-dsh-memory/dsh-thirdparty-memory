@@ -5,7 +5,7 @@
  */
 
 import { createHash } from "node:crypto"
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -405,12 +405,37 @@ function readJsonStore(file) {
 
 export function loadStoreJson(file) {
   const parsed = readJsonStore(file)
-  return parsed.ok ? parsed.store : emptyStore()
+  if (parsed.ok) return parsed.store
+  const store = emptyStore()
+  if (!parsed.missing) {
+    // JSON 回退路径没有 SQLite 的 revision 保护。解析失败时不能假装“空库”：
+    // 否则下一次写入会把损坏文件直接覆盖掉，用户看到的是记忆全没了。
+    store.degraded = {
+      reason: "JSON 存储解析失败：文件可能已损坏或不是有效 JSON",
+      dbFile: String(file ?? ""),
+      fallback: "",
+    }
+  }
+  return store
 }
 
 export function saveStoreJson(file, store) {
   mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, JSON.stringify(normalizeStore(store), null, 2), "utf8")
+  const text = JSON.stringify(normalizeStore(store), null, 2)
+  // 原子替换：先写同目录临时文件，再 rename。直接 writeFileSync 会在崩溃/断电时
+  // 留下半截 JSON，下一次 load 就会把它当成空库。
+  const tmp = file + ".tmp-" + process.pid + "-" + Date.now()
+  try {
+    writeFileSync(tmp, text, "utf8")
+    renameSync(tmp, file)
+  } catch (error) {
+    try {
+      unlinkSync(tmp)
+    } catch {
+      /* 临时文件可能已经不存在 */
+    }
+    throw error
+  }
 }
 
 const backends = new Map()

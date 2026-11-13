@@ -20,7 +20,7 @@
 > - 数据存储：单个 SQLite 文件，永不上云。卸载 / 更换模型？带走文件，你的记忆就永生。
 
 ```
-版本     : 0.4.5（2026-11-12）· MIT · 非官方
+版本     : 0.4.6（2026-11-13）· MIT · 非官方
 支持平台 : DSH Desktop（MSIX）· DeepSeek Harness 便携版（Electron）· 命令行 `dsh web`
 运行环境 : Node.js 18+（exe 自带 Node 24；SQLite 存储需要 `node:sqlite`，即 Node 22.5+）
 存储方式 : 本地 SQLite（`node:sqlite` 内置，WAL 模式）—— 无服务端、无云端、无遥测
