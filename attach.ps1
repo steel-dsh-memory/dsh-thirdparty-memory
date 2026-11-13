@@ -178,48 +178,93 @@ function Attach-Profile($dir) {
   if (Test-Path -LiteralPath $patchPath) { $existing = [System.IO.File]::ReadAllText($patchPath, [System.Text.Encoding]::UTF8) }
   $wantedData = ""
   if (-not [string]::IsNullOrWhiteSpace($DataFile)) { $wantedData = ($DataFile -replace "\\", "/") }
-  # 不传 -DataFile 时必须沿用配置里已有的 dataFile，否则等于偷偷换了记忆文件位置。
-  if ($wantedData.Length -eq 0 -and $existing.Length -gt 0) {
-    $scanSkip = $false
-    foreach ($line in ($existing -split "`r?`n")) {
-      if ($line -match "^\s*-\s*id:\s*thirdparty-memory\s*$") { $scanSkip = $true; continue }
-      if ($scanSkip) {
-        if ($line -match "^\s*-\s*id:") { break }
-        $dataMatch = [regex]::Match($line, "^\s*dataFile\s*:\s*(.+?)\s*$")
-        if ($dataMatch.Success) {
-          $wantedData = $dataMatch.Groups[1].Value.Trim().Trim("'").Trim('"')
-          break
-        }
+  $existingLines = @()
+  if ($existing.Length -gt 0) { $existingLines = @($existing -split "`r?`n") }
+
+  # Locate the existing thirdparty-memory block. If we are not changing dataFile,
+  # leave the block byte-for-byte alone: enabled/autoExtract/inbox/maxBytes/...
+  # are user configuration, not values this script has any right to reset.
+  $blockStart = -1
+  $blockEnd = -1
+  for ($i = 0; $i -lt $existingLines.Count; $i++) {
+    if ($existingLines[$i] -match "^\s*-\s*id:\s*thirdparty-memory\s*$") {
+      $blockStart = $i
+      $blockEnd = $existingLines.Count
+      for ($j = $i + 1; $j -lt $existingLines.Count; $j++) {
+        if ($existingLines[$j] -match "^\s*-\s*id:") { $blockEnd = $j; break }
       }
+      break
     }
-    if ($wantedData.Length -gt 0) { Write-Skip "keep existing dataFile ($wantedData)" }
+  }
+  $existingData = ""
+  if ($blockStart -ge 0) {
+    for ($i = $blockStart; $i -lt $blockEnd; $i++) {
+      $match = [regex]::Match($existingLines[$i], "^\s*dataFile\s*:\s*(.+?)\s*$")
+      if ($match.Success) { $existingData = $match.Groups[1].Value.Trim().Trim("'").Trim('"'); break }
+    }
+  }
+  $explicitData = -not [string]::IsNullOrWhiteSpace($DataFile)
+  if (-not $explicitData) { $wantedData = $existingData }
+  $dataChanged = $explicitData -and ($wantedData -ne $existingData)
+
+  if ($blockStart -ge 0 -and -not $dataChanged) {
+    Write-Skip "cordis.patch.yml already up to date"
+    return $true
   }
 
-  $blockLines = @(
-    "# dsh-thirdparty-memory (third-party long-term memory, unofficial)",
-    "- id: thirdparty-memory",
-    "  name: dsh-thirdparty-memory",
-    "  config:",
-    "    enabled: true",
-    "    autoExtract: true",
-    "    inbox: true   # all automatic writes go to the review inbox (0.4.4+)"
-  )
-  if ($wantedData.Length -gt 0) { $blockLines += ("    dataFile: '" + $wantedData + "'") }
-
-  $kept = New-Object System.Collections.ArrayList
-  $skipping = $false
-  foreach ($line in ($existing -split "`r?`n")) {
-    if ($line -match "^\s*-\s*id:\s*thirdparty-memory\s*$") { $skipping = $true; continue }
-    if ($skipping) {
-      if ($line -match "^\s*-\s*id:") { $skipping = $false } else { continue }
+  if ($blockStart -ge 0) {
+    # Only replace/insert dataFile; keep every other config line (including
+    # enabled: false) and any comments the user added inside the block.
+    $newBlock = New-Object System.Collections.ArrayList
+    $dataWritten = $false
+    $dataIndent = "    "
+    for ($i = $blockStart; $i -lt $blockEnd; $i++) {
+      $line = $existingLines[$i]
+      if ($line -match "^(\s*)dataFile\s*:") {
+        if (-not $dataWritten) {
+          $dataIndent = $Matches[1]
+          [void]$newBlock.Add($dataIndent + "dataFile: '" + $wantedData + "'")
+          $dataWritten = $true
+        }
+        continue
+      }
+      [void]$newBlock.Add($line)
     }
-    if ($line.Trim() -eq "[]") { continue }
-    if ($line -match "^#\s*dsh-thirdparty-memory") { continue }
-    [void]$kept.Add($line)
+    if (-not $dataWritten -and $wantedData.Length -gt 0) {
+      $configAt = -1
+      for ($i = 0; $i -lt $newBlock.Count; $i++) {
+        if ($newBlock[$i] -match "^\s*config\s*:") { $configAt = $i; break }
+      }
+      if ($configAt -ge 0) { $newBlock.Insert($configAt + 1, $dataIndent + "dataFile: '" + $wantedData + "'") }
+      else { $newBlock.Add($dataIndent + "dataFile: '" + $wantedData + "'") }
+    }
+    $before = @()
+    if ($blockStart -gt 0) { $before = @($existingLines[0..($blockStart - 1)]) }
+    $after = @()
+    if ($blockEnd -lt $existingLines.Count) { $after = @($existingLines[$blockEnd..($existingLines.Count - 1)]) }
+    $final = (@($before) + @($newBlock) + @($after)) -join "`n"
+  } else {
+    $blockLines = @(
+      "# dsh-thirdparty-memory (third-party long-term memory, unofficial)",
+      "- id: thirdparty-memory",
+      "  name: dsh-thirdparty-memory",
+      "  config:",
+      "    enabled: true",
+      "    autoExtract: true",
+      "    inbox: true   # all automatic writes go to the review inbox (0.4.4+)"
+    )
+    if ($wantedData.Length -gt 0) { $blockLines += ("    dataFile: '" + $wantedData + "'") }
+    $kept = New-Object System.Collections.ArrayList
+    foreach ($line in $existingLines) {
+      if ($line.Trim() -eq "[]") { continue }
+      if ($line -match "^#\s*dsh-thirdparty-memory") { continue }
+      [void]$kept.Add($line)
+    }
+    $body = ($kept -join "`n").TrimEnd()
+    if ($body.Length -gt 0) { $body = $body + "`n`n" }
+    $final = @($body + ($blockLines -join "`n") + "`n") -join "`n"
   }
-  $body = ($kept -join "`n").TrimEnd()
-  if ($body.Length -gt 0) { $body = $body + "`n`n" }
-  $final = $body + ($blockLines -join "`n") + "`n"
+
   if ($final -eq $existing) {
     Write-Skip "cordis.patch.yml already up to date"
   } else {

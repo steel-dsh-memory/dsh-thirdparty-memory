@@ -1175,6 +1175,7 @@ export function selectEntries(store, options = {}) {
   const config = options.config ?? {}
   const query = String(options.query ?? "")
   const sessionId = String(options.sessionId ?? "")
+  const allMode = options.all === true
   const now = Date.now()
   const numbered = store.entries.map((entry, offset) => ({ entry, number: offset + 1 }))
 
@@ -1188,12 +1189,30 @@ export function selectEntries(store, options = {}) {
   const ephemeral = []
   const dormant = []
   const pool = []
+  const allBody = []
   for (const item of live) {
     const category = item.entry.category
+    if (allMode) {
+      // all 模式是明确的“全量”约定：不再过关键词/项目门槛。
+      // 但仍然只允许当前会话的 ephemeral 进入正文；其它会话的临时条目
+      // 不能因为用户切到 all 就泄漏。
+      if (category === "global" || category === "persona") {
+        always.push(item)
+      } else if (category === "ephemeral") {
+        const bound = String(item.entry.sessionId ?? "")
+        if (bound.length === 0 || bound === sessionId) ephemeral.push(item)
+      } else {
+        allBody.push(item)
+      }
+      continue
+    }
     if (category === "global" || category === "persona") {
       always.push(item)
     } else if (category === "ephemeral") {
-      if (item.entry.sessionId && item.entry.sessionId === sessionId) ephemeral.push(item)
+      const bound = String(item.entry.sessionId ?? "")
+      // 其它会话的 ephemeral 既不能进正文，也不能进索引/recall 候选。
+      if (bound.length > 0 && bound !== sessionId) continue
+      if (bound === sessionId) ephemeral.push(item)
       else dormant.push(item)
     } else if (category === "project") {
       // 项目类 = 闸门 + 滤镜：项目没激活就休眠（只进索引）；
@@ -1202,6 +1221,26 @@ export function selectEntries(store, options = {}) {
       else dormant.push(item)
     } else {
       pool.push(item)
+    }
+  }
+
+  if (allMode) {
+    const maxEntries = Math.max(1, Number(config.maxEntries ?? 50))
+    return {
+      always,
+      project: [],
+      ephemeral,
+      matched: allBody.slice(0, maxEntries),
+      rest: [],
+      pending,
+      rejected,
+      expired,
+      tokens: new Set(),
+      units: [],
+      clusters: 0,
+      recall: null,
+      dormant: [],
+      all: true,
     }
   }
 
@@ -1394,11 +1433,13 @@ export function renderInjection(store, options = {}) {
   }
 
   const recall = selected.recall
-  const matchLabel = recall
-    ? `显式提取（关于「${recall.topic}」的全部记忆，共 ${matched.length} 条）`
-    : selected.clusters > 1
-      ? `与本轮话题相关（覆盖 ${selected.clusters} 个话题）`
-      : "与本轮话题相关"
+  const matchLabel = selected.all
+    ? "全部记忆（all 模式）"
+    : recall
+      ? `显式提取（关于「${recall.topic}」的全部记忆，共 ${matched.length} 条）`
+      : selected.clusters > 1
+        ? `与本轮话题相关（覆盖 ${selected.clusters} 个话题）`
+        : "与本轮话题相关"
   const projectLabel = project.length > 0 && project[0].entry.project
     ? `本项目（${project[0].entry.project}）`
     : "本项目（切换项目自动休眠）"

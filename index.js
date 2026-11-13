@@ -120,8 +120,8 @@ export const Config = buildConfig({
   pagePort: num(7891, { min: 1, max: 65535 }),
   // 向量层：默认本地零依赖（哈希 n-gram + 余弦）；关掉就是纯关键词。
   vector: bool(true),
-  vectorWeight: num(1, { min: 0 }),
-  vectorMinCos: num(0.3, { min: 0, max: 1 }),
+  vectorWeight: num(1, { min: 0, integer: false }),
+  vectorMinCos: num(0.3, { min: 0, max: 1, integer: false }),
 })
 const PLUGIN_DIR = dirname(fileURLToPath(import.meta.url))
 /**
@@ -304,7 +304,7 @@ export function apply(ctx, config) {
         const forced = { ...effectiveConfig, minScore: 0, maxRelevant: effectiveConfig.maxEntries }
         // v0.4.4（#12）：其它会话的 ephemeral 不得跟着 all 模式泄漏进来；
         // 本会话的 ephemeral 保持原类别（不再改写成 general）并进正文。
-        return renderInjection(entriesForAllMode(store, sessionId), { query, sessionId, config: forced }).text
+        return renderInjection(entriesForAllMode(store, sessionId), { query, sessionId, config: forced, all: true }).text
       }
       return renderInjection(store, { query, sessionId, config: effectiveConfig }).text
     },
