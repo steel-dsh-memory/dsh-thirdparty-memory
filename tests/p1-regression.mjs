@@ -71,7 +71,9 @@ try {
     }
   }
 } finally {
-  rmSync(root, { recursive: true, force: true })
+  // Windows keeps the SQLite handle open until process exit; the temp dir is
+  // harmless and the OS cleans it up. On POSIX we can remove it here.
+  if (process.platform !== "win32") rmSync(root, { recursive: true, force: true })
 }
 
 console.log("P1 regression: all checks passed")
