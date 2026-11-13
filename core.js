@@ -520,6 +520,23 @@ function createSqliteBackend(DatabaseSync, dbFile, sourceFile, legacyFile) {
     return { ok: true, store: readStore(db), backup }
   }
 
+  // 迁移失败时，旧 JSON 仍然可读：把它的内容以 degraded 形式返回。
+  // 关键点是绝不能回退到“目标 .sqlite 不存在 → 空库”——那样第一次写入会新建
+  // 空库，旧 JSON 从此再也不会被迁移/展示（0.4.6 P1）。
+  function degradedFromMigration(jsonFile, error) {
+    const fallback = readJsonStore(jsonFile)
+    const store = fallback.ok ? fallback.store : emptyStore()
+    store.degraded = {
+      reason:
+        "旧 JSON 迁移失败：" +
+        String(error?.message ?? error ?? "无法读取或备份") +
+        "；已拒绝写入以免覆盖旧记忆",
+      dbFile,
+      fallback: fallback.ok ? jsonFile : "",
+    }
+    return decorate(store)
+  }
+
   function readMeta(db, key) {
     try {
       const row = db.prepare("SELECT v FROM meta WHERE k = ?").get(key)
@@ -756,15 +773,26 @@ function createSqliteBackend(DatabaseSync, dbFile, sourceFile, legacyFile) {
         return decorate(store)
       }
       if (sourceFile && sourceFile !== dbFile && existsSync(sourceFile)) {
-        const migrated = migrateFrom(sourceFile)
+        let migrated
+        try {
+          migrated = migrateFrom(sourceFile)
+        } catch (error) {
+          return degradedFromMigration(sourceFile, error)
+        }
         if (migrated.ok) return decorate(migrated.store)
         if (migrated.missing) return decorate(emptyStore())
-        return null // JSON 在但读/备份失败：不建库，让调用方回退 JSON
+        return degradedFromMigration(sourceFile, migrated.error)
       }
       if (legacyFile && legacyFile !== sourceFile && existsSync(legacyFile)) {
-        const migrated = migrateFrom(legacyFile)
+        let migrated
+        try {
+          migrated = migrateFrom(legacyFile)
+        } catch (error) {
+          return degradedFromMigration(legacyFile, error)
+        }
         if (migrated.ok) return decorate(migrated.store)
-        return null
+        if (migrated.missing) return decorate(emptyStore())
+        return degradedFromMigration(legacyFile, migrated.error)
       }
       return decorate(emptyStore())
     },

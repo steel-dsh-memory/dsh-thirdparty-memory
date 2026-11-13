@@ -446,9 +446,11 @@ static class Program
 
     // ── 解压 / 路径 ─────────────────────────────────────────────────────────
     // ── 存储目录规则 ────────────────────────────────────────────────────────
-    // 只允许：现有盘符 + 全英文（ASCII）目录名 + 目录为空（或它本身就是当前存储目录）。
-    // 目标目录已有别的内容时拒绝，避免把记忆塞进别人的目录里。
-    static string ValidateStore(string path, string previous)
+    // 用户主动改目录时：现有盘符 + 全英文（ASCII）目录名 + 目录为空（或它本身就是当前存储目录）。
+    // 自动默认目录（%APPDATA%）/旧数据目录不套 ASCII 规则：中文 Windows 用户名的
+    // %APPDATA% 天然含中文，套规则会让管理器第一次启动就失败。README 也把规则限定在
+    // “改目录”时，而不是每次启动。
+    static string ValidateStore(string path, string previous, bool enforceAscii = true)
     {
         if (string.IsNullOrWhiteSpace(path)) return "存储目录不能为空。";
         string full;
@@ -458,14 +460,17 @@ static class Program
         if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return "盘符不存在：" + (root ?? "?");
         string rest = full.Substring(root.Length).TrimEnd('\\', '/');
         if (rest.Length == 0) return "不允许直接用盘符根目录，请选一个子目录。";
-        foreach (string segment in rest.Split('\\', '/'))
+        if (enforceAscii)
         {
-            if (segment.Length == 0) continue;
-            foreach (char ch in segment)
+            foreach (string segment in rest.Split('\\', '/'))
             {
-                bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
-                          || ch == ' ' || ch == '_' || ch == '-' || ch == '.';
-                if (!ok) return "目录名只允许英文字母、数字、空格、下划线、短横线和点：\"" + segment + "\"";
+                if (segment.Length == 0) continue;
+                foreach (char ch in segment)
+                {
+                    bool ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
+                              || ch == ' ' || ch == '_' || ch == '-' || ch == '.';
+                    if (!ok) return "目录名只允许英文字母、数字、空格、下划线、短横线和点：\"" + segment + "\"";
+                }
             }
         }
         if (!Directory.Exists(full)) return null; // 不存在 → 稍后创建
@@ -474,6 +479,19 @@ static class Program
         if (children.Length == 0) return null;
         if (same) return null;
         return "目标目录不是空目录：" + full + "\n请选一个空目录（或新建一个）。";
+    }
+
+    static bool SameFolder(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left).TrimEnd('\\'),
+                Path.GetFullPath(right).TrimEnd('\\'),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     static void EnsureStoreDir()
@@ -520,7 +538,11 @@ static class Program
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "dsh-thirdparty-memory");
         PreviousStoreDir = savedStore.Length > 0 ? savedStore : (legacyHasData ? legacyStore : defaultStore);
         string candidate = StoreDirOverride.Length > 0 ? StoreDirOverride : PreviousStoreDir;
-        string storeError = ValidateStore(candidate, PreviousStoreDir);
+        // 只有“用户主动换目录”才套 ASCII 规则；自动默认目录/旧数据目录允许中文用户名。
+        bool userSelected = StoreDirOverride.Length > 0;
+        if (!userSelected && savedStore.Length > 0)
+            userSelected = !SameFolder(savedStore, defaultStore) && !SameFolder(savedStore, legacyStore);
+        string storeError = ValidateStore(candidate, PreviousStoreDir, userSelected);
         if (storeError != null) throw new Exception("存储目录不合规：" + storeError);
         StoreDir = Path.GetFullPath(candidate);
         dataFile = Path.Combine(StoreDir, "memory.json");
